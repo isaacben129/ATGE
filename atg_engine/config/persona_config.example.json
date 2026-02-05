@@ -1,0 +1,23 @@
+{
+  "persona": {
+    "name": "My Brand",
+    "handle": "mybrand",
+    "niche": "Tech and productivity",
+    "bio": "Short bio for the account.",
+    "dos_donts": "Do: be concise, use examples. Don't: spread unverified claims.",
+    "style_notes": "Casual but professional. Occasional humor."
+  },
+  "voice_genome": {
+    "tone_traits": ["direct", "clear", "friendly"],
+    "risk_tolerance": 0.5,
+    "aggressiveness": 0.4,
+    "humor_level": 0.5,
+    "controversy_level": 0.3
+  },
+  "strategy": {
+    "wig": "Follower growth",
+    "daily_post_target": 5,
+    "thread_ratio": 0.2,
+    "experimentation_rate": 0.25
+  }
+}

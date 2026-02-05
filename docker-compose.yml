@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  atg_engine:
+    build: .
+    env_file: .env
+    volumes:
+      - atg_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/atg_engine.db
+    working_dir: /app
+    command: ["python", "-m", "atg_engine", "scheduler"]
+
+  # Optional PostgreSQL (uncomment and set DATABASE_URL to use)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_USER: atg
+  #     POSTGRES_PASSWORD: atg
+  #     POSTGRES_DB: atg_engine
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+
+volumes:
+  atg_data: {}
+  # pgdata: {}

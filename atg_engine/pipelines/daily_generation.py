@@ -1,0 +1,261 @@
+"""Daily generation pipeline: ideas -> hooks -> writer -> thread -> gatekeeper -> save approved."""
+import json
+import re
+import uuid
+from crewai import Crew, Process, Task
+
+from atg_engine.agents import (
+    create_idea_generator,
+    create_hook_generator,
+    create_writer,
+    create_thread_builder,
+    create_misinformation_gatekeeper,
+)
+from atg_engine.db.session import SessionLocal
+from atg_engine.config.env_validation import validate_env
+from atg_engine.models import TweetCandidate, VoiceGenome, StrategyState, Persona
+from atg_engine.services.bootstrap import ensure_bootstrap
+from atg_engine.utils.gatekeeper_parse import (
+    _normalize_text_and_thread_seq,
+    _strip_tweet_prefix,
+    parse_approved_content,
+)
+
+
+def _fetch_context():
+    ensure_bootstrap()
+    db = SessionLocal()
+    try:
+        persona = db.query(Persona).first()
+        persona_context = persona.to_prompt_context() if persona else "No persona defined yet."
+        genome = db.query(VoiceGenome).order_by(VoiceGenome.last_updated.desc()).first()
+        strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
+        genome_json = "{}"
+        if genome:
+            genome_json = json.dumps({
+                "tone_traits": genome.get_tone_traits_list(),
+                "risk_tolerance": genome.risk_tolerance,
+                "aggressiveness": genome.aggressiveness,
+                "humor_level": genome.humor_level,
+            })
+        strategy_json = "{}"
+        if strategy:
+            strategy_json = json.dumps({
+                "daily_post_target": strategy.daily_post_target,
+                "thread_ratio": strategy.thread_ratio,
+                "experimentation_rate": strategy.experimentation_rate,
+            })
+        return genome_json, strategy_json, persona_context
+    finally:
+        db.close()
+
+
+def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
+    if dry_run:
+        return
+    db = SessionLocal()
+    try:
+        # Group consecutive items with thread_sequence 0,1,2,... into one thread_id
+        i = 0
+        while i < len(approved_list):
+            item = approved_list[i]
+            if not item.get("approved"):
+                i += 1
+                continue
+            text = item.get("text", "").strip()
+            if not text or len(text) > 280:
+                i += 1
+                continue
+            seq = item.get("thread_sequence")
+            if seq is not None and seq == 0:
+                thread_id = str(uuid.uuid4())
+                j = i + 1
+                while j < len(approved_list) and approved_list[j].get("approved") and approved_list[j].get("thread_sequence") == (j - i):
+                    j += 1
+                for k in range(i, j):
+                    t = approved_list[k].get("text", "").strip()
+                    if not t or len(t) > 280:
+                        continue
+                    cand = TweetCandidate(
+                        text=t,
+                        tone_traits="[]",
+                        topic=approved_list[k].get("topic", ""),
+                        hook_type=approved_list[k].get("hook_type", ""),
+                        risk_score=0.0,
+                        approved=True,
+                        published=False,
+                        thread_id=thread_id,
+                        thread_sequence=approved_list[k].get("thread_sequence"),
+                    )
+                    db.add(cand)
+                i = j
+                continue
+            if seq is not None and seq > 0:
+                i += 1
+                continue
+            candidate = TweetCandidate(
+                text=text,
+                tone_traits="[]",
+                topic=item.get("topic", ""),
+                hook_type=item.get("hook_type", ""),
+                risk_score=0.0,
+                approved=True,
+                published=False,
+                thread_id=None,
+                thread_sequence=None,
+            )
+            db.add(candidate)
+            i += 1
+        db.commit()
+    finally:
+        db.close()
+
+
+def run(**kwargs) -> str:
+    validate_env(require_llm=True, require_twitter=False)
+    genome_json, strategy_json, persona_context = _fetch_context()
+    n_ideas = kwargs.get("n_ideas", 3)
+
+    idea_agent = create_idea_generator()
+    hook_agent = create_hook_generator()
+    writer_agent = create_writer()
+    thread_agent = create_thread_builder()
+    gatekeeper_agent = create_misinformation_gatekeeper()
+
+    idea_task = Task(
+        description=(
+            "Use the following context to generate exactly "
+            + str(n_ideas)
+            + " tweet ideas (topic + angle). These ideas will be used for hooks and full tweets.\n\n"
+            "Inputs:\n"
+            "- Persona (stay in character): "
+            + persona_context
+            + "\n- Voice/strategy: genome="
+            + genome_json
+            + ", strategy="
+            + strategy_json
+            + "\n\n"
+            "Steps:\n"
+            "1. Use the persona and voice/strategy to stay on-brand.\n"
+            "2. Produce exactly "
+            + str(n_ideas)
+            + " ideas; each idea must have one clear topic and one clear angle.\n"
+            "3. Output in the exact format specified in expected_output."
+        ),
+        expected_output=(
+            "A markdown list of exactly "
+            + str(n_ideas)
+            + " ideas. For each idea use this format:\n"
+            "## Idea K\n- Topic: <topic>\n- Angle: <angle>\n"
+            "(K = 1 to "
+            + str(n_ideas)
+            + "). No other sections."
+        ),
+        agent=idea_agent,
+    )
+    hook_task = Task(
+        description=(
+            "For each idea from the previous task (use the exact topic and angle for each), generate one high-impact hook and tag its type.\n\n"
+            "Inputs: The list of ideas from the previous task; persona (for voice): "
+            + persona_context
+            + "\n\n"
+            "Steps:\n"
+            "1. Take each idea in order (Idea 1, Idea 2, ...).\n"
+            "2. For each idea, write one scroll-stopping hook that fits the topic and angle.\n"
+            "3. Tag each hook with exactly one type: shock, curiosity, authority, contrarian, or other.\n"
+            "4. Output in the exact format specified in expected_output."
+        ),
+        expected_output=(
+            "For each idea, one block in this format:\n"
+            "## Idea K\nHook: <hook text>\nType: <one of shock|curiosity|authority|contrarian|other>\n"
+            "Use the same K numbering as the ideas from the previous task."
+        ),
+        agent=hook_agent,
+        context=[idea_task],
+    )
+    writer_task = Task(
+        description=(
+            "Using the ideas and hooks from the previous tasks, write 1–3 full tweet variants per idea. Every tweet must stay in character and be under 280 characters.\n\n"
+            "Inputs: Ideas and hooks from the previous tasks; persona: "
+            + persona_context
+            + "; voice: "
+            + genome_json
+            + "\n\n"
+            "Steps:\n"
+            "1. For each idea, use its hook and the voice parameters to write 1–3 full tweet variants.\n"
+            "2. Stay in character for the persona. Every tweet must be under 280 characters.\n"
+            "3. Output in the exact format specified in expected_output."
+        ),
+        expected_output=(
+            "For each idea, one block in this format:\n"
+            "## Idea K\nVariant 1: <full tweet>\nVariant 2: <full tweet>\n(optional Variant 3)\n"
+            "Each variant on its own line or clearly separated. Every tweet must be under 280 characters."
+        ),
+        agent=writer_agent,
+        context=[idea_task, hook_task],
+    )
+    thread_task = Task(
+        description=(
+            "Pick the top 1–2 ideas from the ideas and writer output, then build a short thread with narrative structure. Stay in character; each tweet under 280 characters.\n\n"
+            "Inputs: Ideas and writer output from previous tasks; persona: "
+            + persona_context
+            + "\n\n"
+            "Steps:\n"
+            "1. Choose the top 1–2 ideas to turn into a thread.\n"
+            "2. Structure the thread as: problem → insight → takeaway (2–4 tweets total).\n"
+            "3. Number each tweet. Keep each tweet under 280 characters.\n"
+            "4. Output in the exact format specified in expected_output."
+        ),
+        expected_output=(
+            "A thread of 2–4 tweets in this format:\n"
+            "1. <tweet>\n2. <tweet>\n...\n"
+            "Clear numbering. Each tweet under 280 characters."
+        ),
+        agent=thread_agent,
+        context=[idea_task, writer_task],
+    )
+    gatekeeper_task = Task(
+        description=(
+            "Review each tweet or thread piece from the writer and thread tasks for factual and policy compliance. Content should align with the persona voice; your job is only to approve or block based on facts and policy.\n\n"
+            "Inputs: All tweet content from the writer and thread tasks; persona (for voice alignment): "
+            + persona_context
+            + "\n\n"
+            "Rules:\n"
+            "- Verifiable factual claims (science, health, finance, news) are allowed only if verifiable; otherwise block.\n"
+            "- Opinions, satire, and clearly subjective statements: allow.\n"
+            "- If unsure whether something is factual or whether a fact is verifiable: block (APPROVED: false).\n"
+            "- No hate speech, impersonation, or Twitter ToS violations.\n\n"
+            "Output exactly one TWEET / APPROVED / REASON block per piece of content, in the format specified in expected_output."
+        ),
+        expected_output=(
+            "For each piece of content (each tweet or thread tweet), output exactly:\n"
+            "TWEET: <quoted or exact text>\nAPPROVED: true\nREASON: <one line>\n"
+            "or\n"
+            "TWEET: <quoted or exact text>\nAPPROVED: false\nREASON: <one line>\n"
+            "One block per piece. Use APPROVED: true only when the content has no unverifiable factual claims and complies with policy."
+        ),
+        agent=gatekeeper_agent,
+        context=[writer_task, thread_task],
+    )
+
+    crew = Crew(
+        agents=[idea_agent, hook_agent, writer_agent, thread_agent, gatekeeper_agent],
+        tasks=[idea_task, hook_task, writer_task, thread_task, gatekeeper_task],
+        process=Process.sequential,
+        verbose=kwargs.get("verbose", True),
+    )
+    result = crew.kickoff()
+    raw = result.raw if hasattr(result, "raw") else str(result)
+    approved_list = parse_approved_content(raw)
+    # Also extract individual tweet texts from raw for approved items (simplified: treat each block ending with APPROVED: true as one tweet)
+    texts_found = re.findall(r"([^\n]+(?:\n[^\n]+)*?)\s*APPROVED:\s*true", raw, re.IGNORECASE | re.DOTALL)
+    for idx, text in enumerate(texts_found):
+        text = _strip_tweet_prefix(text.strip())
+        if text and len(text) <= 280 and "REASON:" not in text.upper():
+            norm_text, thread_seq = _normalize_text_and_thread_seq(text)
+            item = {"text": (norm_text if norm_text else text), "approved": True, "topic": "", "hook_type": ""}
+            if thread_seq is not None:
+                item["thread_sequence"] = thread_seq
+            approved_list.append(item)
+    _save_approved_only(approved_list, dry_run=kwargs.get("dry_run", False))
+    return raw
