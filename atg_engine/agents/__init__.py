@@ -10,6 +10,7 @@ from atg_engine.agents.publisher import create_agent as create_publisher
 from atg_engine.agents.analytics_agent import create_agent as create_analytics_agent
 from atg_engine.agents.evolution_agent import create_agent as create_evolution_agent
 from atg_engine.agents.cadence_manager import create_agent as create_cadence_manager
+from atg_engine.agents.curation_agent import create_agent as create_curation_agent
 
 __all__ = [
     "create_wig_strategist",
@@ -23,4 +24,5 @@ __all__ = [
     "create_analytics_agent",
     "create_evolution_agent",
     "create_cadence_manager",
+    "create_curation_agent",
 ]

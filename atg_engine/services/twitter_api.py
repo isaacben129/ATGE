@@ -43,10 +43,11 @@ def _is_retryable(status_code: int | None) -> bool:
     return status_code in (429, 503)
 
 
-def post_tweet(text: str, reply_to_tweet_id: str | None = None) -> str | None:
+def post_tweet(text: str, reply_to_tweet_id: str | None = None, quote_tweet_id: str | None = None) -> str | None:
     """
     Post a tweet via API v2. Returns tweet_id or None on failure.
     If reply_to_tweet_id is set, the tweet is posted as a reply (for threads).
+    If quote_tweet_id is set, the tweet is posted as a quote of the given tweet.
     Retries with exponential backoff on 429 (rate limit) and 503 (server error).
     """
     client = _get_client()
@@ -55,6 +56,8 @@ def post_tweet(text: str, reply_to_tweet_id: str | None = None) -> str | None:
     kwargs = {"text": text}
     if reply_to_tweet_id:
         kwargs["in_reply_to_tweet_id"] = reply_to_tweet_id
+    if quote_tweet_id:
+        kwargs["quote_tweet_id"] = quote_tweet_id
     last_status = None
     for attempt in range(MAX_RETRIES):
         try:

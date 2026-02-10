@@ -55,7 +55,8 @@ def run(**kwargs) -> str:
             if c.thread_id and c.thread_sequence is not None and c.thread_sequence > 0:
                 i += 1
                 continue
-            tweet_id = twitter_api.post_tweet(c.text)
+            quote_id = getattr(c, "quote_tweet_id", None)
+            tweet_id = twitter_api.post_tweet(c.text, quote_tweet_id=quote_id)
             if tweet_id:
                 c.published = True
                 c.tweet_id = tweet_id
@@ -110,7 +111,8 @@ def _preview_publish(limit: int) -> str:
                 i += 1
                 continue
             preview_text = c.text[:60] + "..." if len(c.text) > 60 else c.text
-            lines.append(f"  {c.id}: {preview_text}")
+            quote_note = f" (quote of {c.quote_tweet_id})" if getattr(c, "quote_tweet_id", None) else ""
+            lines.append(f"  {c.id}: {preview_text}{quote_note}")
             count += 1
             i += 1
         return "\n".join(lines)

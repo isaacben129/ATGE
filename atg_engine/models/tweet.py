@@ -22,4 +22,5 @@ class TweetCandidate(Base):
     tweet_id: Mapped[str] = mapped_column(String(64), nullable=True)
     thread_id: Mapped[str] = mapped_column(String(64), nullable=True, index=True)
     thread_sequence: Mapped[int] = mapped_column(Integer, nullable=True)
+    quote_tweet_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

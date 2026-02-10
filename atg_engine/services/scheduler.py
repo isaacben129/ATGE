@@ -8,6 +8,7 @@ from atg_engine.config.settings import (
     DAILY_GENERATION_CRON,
     PERFORMANCE_INTERVAL_HOURS,
     PUBLISHING_INTERVAL_HOURS,
+    TRENDING_CONTENT_CRON,
     WEEKLY_REVIEW_CRON,
 )
 
@@ -60,6 +61,14 @@ def run_weekly_job():
         logger.exception("Weekly review failed: %s", e)
 
 
+def run_trending_job():
+    from atg_engine.pipelines.trending_content_pipeline import run
+    try:
+        run()
+    except Exception as e:
+        logger.exception("Trending content discovery failed: %s", e)
+
+
 def start_scheduler():
     """Start the blocking scheduler with all pipeline jobs."""
     # Pre-import CrewAI in main thread so its telemetry can register signal handlers (avoids "signal only works in main thread" when jobs run in worker threads)
@@ -71,6 +80,8 @@ def start_scheduler():
     scheduler.add_job(run_analytics_job, IntervalTrigger(hours=PERFORMANCE_INTERVAL_HOURS))
     w = _parse_cron(WEEKLY_REVIEW_CRON)
     scheduler.add_job(run_weekly_job, CronTrigger(minute=w["minute"], hour=w["hour"], day_of_week=w["day_of_week"]))
-    logger.info("Scheduler started: daily=%s, publish=%sh, analytics=%sh, weekly=%s",
-                DAILY_GENERATION_CRON, PUBLISHING_INTERVAL_HOURS, PERFORMANCE_INTERVAL_HOURS, WEEKLY_REVIEW_CRON)
+    t = _parse_cron(TRENDING_CONTENT_CRON)
+    scheduler.add_job(run_trending_job, CronTrigger(minute=t["minute"], hour=t["hour"], day_of_week=t["day_of_week"]))
+    logger.info("Scheduler started: daily=%s, publish=%sh, analytics=%sh, weekly=%s, trending=%s",
+                DAILY_GENERATION_CRON, PUBLISHING_INTERVAL_HOURS, PERFORMANCE_INTERVAL_HOURS, WEEKLY_REVIEW_CRON, TRENDING_CONTENT_CRON)
     scheduler.start()

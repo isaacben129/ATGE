@@ -30,6 +30,16 @@ def main():
     p_weekly.add_argument("--no-verbose", action="store_true", help="Disable verbose output")
     p_weekly.set_defaults(func=_run_weekly)
 
+    # run-trending
+    p_trending = subparsers.add_parser("run-trending", help="Run trending content discovery and curation pipeline")
+    p_trending.add_argument("--query", type=str, default="", help="Search query (empty for recent non-RT tweets)")
+    p_trending.add_argument("--max-results", type=int, default=10, help="Max trending tweets to analyze")
+    p_trending.add_argument("--min-likes", type=int, default=100, help="Minimum likes threshold")
+    p_trending.add_argument("--min-retweets", type=int, default=10, help="Minimum retweets threshold")
+    p_trending.add_argument("--no-verbose", action="store_true", help="Disable verbose output")
+    p_trending.add_argument("--dry-run", action="store_true", help="Run pipeline but do not save to DB")
+    p_trending.set_defaults(func=_run_trending)
+
     # dashboard
     p_dashboard = subparsers.add_parser("dashboard", help="Show CLI scoreboard (followers, engagement, evolution)")
     p_dashboard.set_defaults(func=_dashboard)
@@ -77,6 +87,15 @@ def main():
             func()
         elif args.command == "run-weekly":
             func(verbose=not getattr(args, "no_verbose", False))
+        elif args.command == "run-trending":
+            func(
+                query=getattr(args, "query", ""),
+                max_results=getattr(args, "max_results", 10),
+                min_likes=getattr(args, "min_likes", 100),
+                min_retweets=getattr(args, "min_retweets", 10),
+                verbose=not getattr(args, "no_verbose", False),
+                dry_run=getattr(args, "dry_run", False),
+            )
         elif args.command == "dashboard":
             func()
         elif args.command == "scheduler":
@@ -109,6 +128,11 @@ def _run_analytics(**kwargs):
 
 def _run_weekly(**kwargs):
     from atg_engine.pipelines.weekly_review import run
+    print(run(**kwargs))
+
+
+def _run_trending(**kwargs):
+    from atg_engine.pipelines.trending_content_pipeline import run
     print(run(**kwargs))
 
 
