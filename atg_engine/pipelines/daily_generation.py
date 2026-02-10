@@ -1,8 +1,11 @@
 """Daily generation pipeline: ideas -> hooks -> writer -> thread -> gatekeeper -> save approved."""
 import json
+import logging
 import re
 import uuid
 from crewai import Crew, Process, Task
+
+logger = logging.getLogger(__name__)
 
 from atg_engine.agents import (
     create_idea_generator,
@@ -45,6 +48,10 @@ def _fetch_context():
                 "thread_ratio": strategy.thread_ratio,
                 "experimentation_rate": strategy.experimentation_rate,
             })
+        if persona_context == "No persona defined yet.":
+            logger.warning(
+                "Persona is empty. Content may be off-brand. Set PERSONA_CONFIG_PATH or add persona_mila.json and re-run, or run: python -m atg_engine init-persona --config <path>"
+            )
         return genome_json, strategy_json, persona_context
     finally:
         db.close()

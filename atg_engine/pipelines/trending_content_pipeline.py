@@ -1,11 +1,15 @@
 """Trending content pipeline: discover trending tweets, curate, gatekeeper, save for approval."""
+import logging
 import re
 from crewai import Crew, Process, Task
+
+logger = logging.getLogger(__name__)
 
 from atg_engine.agents import create_curation_agent, create_misinformation_gatekeeper
 from atg_engine.config.env_validation import validate_env
 from atg_engine.db.session import SessionLocal
 from atg_engine.models import TweetCandidate, Persona
+from atg_engine.services.bootstrap import ensure_bootstrap
 from atg_engine.services.trending_content_discovery import discover_trending_tweets
 
 
@@ -64,7 +68,12 @@ def _parse_approved_ids(raw_output: str) -> set[str]:
 
 def run(**kwargs) -> str:
     validate_env(require_llm=True, require_twitter=True)
+    ensure_bootstrap()
     persona_context = _fetch_persona_context()
+    if persona_context == "No persona defined yet.":
+        logger.warning(
+            "Persona is empty. Curation may be off-brand. Set PERSONA_CONFIG_PATH or run: python -m atg_engine init-persona --config <path>"
+        )
 
     trending = discover_trending_tweets(
         query=kwargs.get("query", ""),

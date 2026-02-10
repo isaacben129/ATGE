@@ -1,15 +1,42 @@
 """Bootstrap: ensure Persona, VoiceGenome, StrategyState exist. Load persona config from file."""
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from atg_engine.db.session import SessionLocal
 from atg_engine.models import Persona, VoiceGenome, StrategyState
 
+logger = logging.getLogger(__name__)
+
+
+def _get_persona_config_path() -> Path | None:
+    """Return path to persona config file if set via env or default file exists."""
+    from atg_engine.config.settings import BASE_DIR, PERSONA_CONFIG_PATH
+
+    if PERSONA_CONFIG_PATH:
+        p = Path(PERSONA_CONFIG_PATH)
+        if p.exists():
+            return p
+        logger.warning("PERSONA_CONFIG_PATH is set but file not found: %s", PERSONA_CONFIG_PATH)
+        return None
+    default = BASE_DIR.parent / "persona_mila.json"
+    if default.exists():
+        return default
+    return None
+
+
+def _persona_is_empty(persona: Persona) -> bool:
+    """True if persona has no meaningful content (would yield 'No persona defined yet.')."""
+    return not (persona.name or persona.niche or persona.bio)
+
 
 def ensure_bootstrap():
-    """Create default Persona, VoiceGenome, and StrategyState if missing. Call before daily/weekly."""
+    """Create default Persona, VoiceGenome, and StrategyState if missing. Call before daily/weekly.
+    If the persona is empty and PERSONA_CONFIG_PATH is set (or persona_mila.json exists in project root),
+    automatically applies that config so content stays on-brand."""
     db = SessionLocal()
+    config_path_to_apply: Path | None = None
     try:
         persona = db.query(Persona).first()
         if not persona:
@@ -44,8 +71,16 @@ def ensure_bootstrap():
             )
             db.add(strategy)
         db.commit()
+        if _persona_is_empty(persona):
+            config_path_to_apply = _get_persona_config_path()
     finally:
         db.close()
+    if config_path_to_apply:
+        try:
+            msg = apply_persona_config(config_path_to_apply)
+            logger.info("Persona was empty; auto-applied from config: %s", msg)
+        except Exception as e:
+            logger.warning("Failed to auto-apply persona config from %s: %s", config_path_to_apply, e)
 
 
 def load_persona_config(path: str | Path) -> dict[str, Any]:

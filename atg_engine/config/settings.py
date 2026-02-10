@@ -37,6 +37,9 @@ TWITTER_READ_PROVIDER = os.getenv("TWITTER_READ_PROVIDER", "official")
 # Optional: cap tweet IDs per ingestion run to stay under free tier (e.g. 30 * 30 days = 900/month)
 PERFORMANCE_INGESTION_MAX_TWEETS = int(os.getenv("PERFORMANCE_INGESTION_MAX_TWEETS", "50"))
 
+# Persona: optional path to JSON config; if set and DB persona is empty, bootstrap will auto-apply it
+PERSONA_CONFIG_PATH = os.getenv("PERSONA_CONFIG_PATH", "").strip()
+
 # Scheduler (cron-like)
 DAILY_GENERATION_CRON = os.getenv("DAILY_GENERATION_CRON", "0 8 * * *")  # 08:00 daily
 PUBLISHING_INTERVAL_HOURS = int(os.getenv("PUBLISHING_INTERVAL_HOURS", "1"))
