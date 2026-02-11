@@ -72,7 +72,10 @@ def run_trending_job():
 def start_scheduler():
     """Start the blocking scheduler with all pipeline jobs."""
     from atg_engine.db.init_db import init_db
-    init_db()
+    try:
+        init_db()
+    except Exception:
+        logger.exception("DB init failed, scheduler starting anyway.")
     # Pre-import CrewAI in main thread so its telemetry can register signal handlers (avoids "signal only works in main thread" when jobs run in worker threads)
     import crewai  # noqa: F401
     scheduler = BlockingScheduler()
