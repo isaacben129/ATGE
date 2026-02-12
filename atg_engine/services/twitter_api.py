@@ -1,4 +1,5 @@
-"""Thin wrapper for X (Twitter) API v2: post tweet, get metrics. OAuth 2.0 / Bearer. Retries on 429/503."""
+"""Thin wrapper for X (Twitter) API v2: post tweet, get metrics. Uses OAuth 1.0a for posting (Bearer for read). Retries on 429/503."""
+import logging
 import time
 from typing import Any
 
@@ -13,30 +14,28 @@ from atg_engine.config.settings import (
     TWITTER_BEARER_TOKEN,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _get_client():
-    """Lazy import tweepy Client (v2)."""
+    """Lazy import tweepy Client (v2) with OAuth 1.0a user context for posting tweets."""
     try:
         import tweepy
     except ImportError:
+        logger.error("tweepy not installed")
         return None
     if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET]):
+        logger.error("Missing Twitter API credentials (API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_SECRET)")
         return None
-    auth = tweepy.OAuth1UserHandler(
-        TWITTER_API_KEY, TWITTER_API_SECRET,
-        TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET,
+    # OAuth 1.0a User Context - required for create_tweet (posting)
+    # Pass bearer_token for read operations if available
+    return tweepy.Client(
+        bearer_token=TWITTER_BEARER_TOKEN if TWITTER_BEARER_TOKEN else None,
+        consumer_key=TWITTER_API_KEY,
+        consumer_secret=TWITTER_API_SECRET,
+        access_token=TWITTER_ACCESS_TOKEN,
+        access_token_secret=TWITTER_ACCESS_SECRET,
     )
-    api = tweepy.API(auth)
-    # Tweepy v2 uses Client with bearer token for most v2 endpoints
-    if TWITTER_BEARER_TOKEN:
-        return tweepy.Client(
-            bearer_token=TWITTER_BEARER_TOKEN,
-            consumer_key=TWITTER_API_KEY,
-            consumer_secret=TWITTER_API_SECRET,
-            access_token=TWITTER_ACCESS_TOKEN,
-            access_token_secret=TWITTER_ACCESS_SECRET,
-        )
-    return None
 
 
 def _is_retryable(status_code: int | None) -> bool:
@@ -52,6 +51,7 @@ def post_tweet(text: str, reply_to_tweet_id: str | None = None, quote_tweet_id: 
     """
     client = _get_client()
     if client is None:
+        logger.error("Cannot post tweet: Twitter client not available (missing credentials or tweepy)")
         return None
     kwargs = {"text": text}
     if reply_to_tweet_id:
@@ -59,18 +59,37 @@ def post_tweet(text: str, reply_to_tweet_id: str | None = None, quote_tweet_id: 
     if quote_tweet_id:
         kwargs["quote_tweet_id"] = quote_tweet_id
     last_status = None
+    last_error = None
     for attempt in range(MAX_RETRIES):
         try:
             response = client.create_tweet(**kwargs)
             if response and response.data:
-                return response.data.get("id")
+                tweet_id = response.data.get("id")
+                logger.info("Successfully posted tweet: %s", tweet_id)
+                return tweet_id
+            else:
+                logger.warning("Tweet posted but response.data is missing")
         except Exception as e:
             resp = getattr(e, "response", None)
             last_status = getattr(resp, "status_code", None) if resp is not None else getattr(e, "status_code", None)
+            last_error = e
+            error_msg = str(e)
+            if resp and hasattr(resp, "json"):
+                try:
+                    error_data = resp.json()
+                    if isinstance(error_data, dict):
+                        error_msg = error_data.get("detail", error_data.get("title", str(e)))
+                except Exception:
+                    pass
+            
             if attempt < MAX_RETRIES - 1 and _is_retryable(last_status):
                 sleep_secs = INITIAL_BACKOFF * (2**attempt)
+                logger.warning("Twitter API error (status %s): %s. Retrying in %s seconds (attempt %s/%s)", 
+                             last_status, error_msg, sleep_secs, attempt + 1, MAX_RETRIES)
                 time.sleep(sleep_secs)
             else:
+                logger.error("Failed to post tweet after %s attempts. Status: %s, Error: %s", 
+                           attempt + 1, last_status, error_msg)
                 break
     return None
 

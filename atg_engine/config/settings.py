@@ -26,9 +26,11 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/llama-3.3-70b-versatile")
 
 # Twitter / X API v2
+# Optional: TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET are the same as API Key/Secret (OAuth 2.0 names).
+# If only Client ID/Secret are set, they are used as API Key/Secret.
 TWITTER_BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN", "")
-TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
-TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "")
+TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "").strip() or os.getenv("TWITTER_CLIENT_ID", "").strip()
+TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "").strip() or os.getenv("TWITTER_CLIENT_SECRET", "").strip()
 TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN", "")
 TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
 

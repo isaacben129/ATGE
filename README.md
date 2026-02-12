@@ -161,6 +161,8 @@ Set these in the deployment platform (Railway Variables or Fly secrets). Never p
 | `TWITTER_ACCESS_TOKEN` | Yes | X API user access token. |
 | `TWITTER_ACCESS_SECRET` | Yes | X API user access secret. |
 
+You can use `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET` instead of `TWITTER_API_KEY` / `TWITTER_API_SECRET` (same credentials; portal may show "Client ID" / "Client Secret").
+
 Optional (scheduler): `DAILY_GENERATION_CRON`, `PUBLISHING_INTERVAL_HOURS`, `PERFORMANCE_INTERVAL_HOURS`, `WEEKLY_REVIEW_CRON` (see `.env.example` or config).
 
 Optional (Supabase client): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (see [Using Supabase](#using-supabase)).
