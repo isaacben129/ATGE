@@ -12,6 +12,13 @@ from atg_engine.config.settings import (
     WEEKLY_REVIEW_CRON,
 )
 
+# Configure logging - Railway-friendly (500 logs/sec limit)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,40 +38,70 @@ def _parse_cron(cron_str: str) -> dict:
 
 def run_daily_job():
     from atg_engine.pipelines.daily_generation import run
+    logger.info("Starting daily generation job...")
     try:
-        run()
+        result = run()
+        # Log summary only (not full result to avoid log spam)
+        if result:
+            result_lines = result.split('\n')
+            summary = result_lines[0] if result_lines else "Completed"
+            logger.info("Daily generation completed: %s", summary[:200])  # Limit length
     except Exception as e:
         logger.exception("Daily generation failed: %s", e)
 
 
 def run_publish_job():
     from atg_engine.pipelines.publishing import run
+    logger.info("Starting publishing job...")
     try:
-        run()
+        result = run()
+        # Log summary only (not full result to avoid log spam)
+        if result:
+            result_lines = result.split('\n')
+            summary = result_lines[0] if result_lines else "Completed"
+            logger.info("Publishing completed: %s", summary[:200])  # Limit length
     except Exception as e:
         logger.exception("Publishing failed: %s", e)
 
 
 def run_analytics_job():
     from atg_engine.pipelines.performance_ingestion import run
+    logger.info("Starting analytics/performance ingestion job...")
     try:
-        run()
+        result = run()
+        # Log summary only (not full result to avoid log spam)
+        if result:
+            result_lines = result.split('\n')
+            summary = result_lines[0] if result_lines else "Completed"
+            logger.info("Analytics ingestion completed: %s", summary[:200])  # Limit length
     except Exception as e:
         logger.exception("Performance ingestion failed: %s", e)
 
 
 def run_weekly_job():
     from atg_engine.pipelines.weekly_review import run
+    logger.info("Starting weekly review job...")
     try:
-        run()
+        result = run()
+        # Log summary only (not full result to avoid log spam)
+        if result:
+            result_lines = result.split('\n')
+            summary = result_lines[0] if result_lines else "Completed"
+            logger.info("Weekly review completed: %s", summary[:200])  # Limit length
     except Exception as e:
         logger.exception("Weekly review failed: %s", e)
 
 
 def run_trending_job():
     from atg_engine.pipelines.trending_content_pipeline import run
+    logger.info("Starting trending content discovery job...")
     try:
-        run()
+        result = run()
+        # Log summary only (not full result to avoid log spam)
+        if result:
+            result_lines = result.split('\n')
+            summary = result_lines[0] if result_lines else "Completed"
+            logger.info("Trending content discovery completed: %s", summary[:200])  # Limit length
     except Exception as e:
         logger.exception("Trending content discovery failed: %s", e)
 
