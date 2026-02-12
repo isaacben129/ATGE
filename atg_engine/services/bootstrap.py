@@ -28,6 +28,8 @@ def _get_persona_config_path() -> Path | None:
 
 def _persona_is_empty(persona: Persona) -> bool:
     """True if persona has no meaningful content (would yield 'No persona defined yet.')."""
+    if getattr(persona, "persona_extended", None) and (persona.persona_extended or "").strip():
+        return False
     return not (persona.name or persona.niche or persona.bio)
 
 
@@ -100,17 +102,51 @@ def apply_persona_config(config_path: str | Path) -> str:
     data = load_persona_config(config_path)
     db = SessionLocal()
     try:
-        persona_data = data.get("persona", {})
+        persona_data = data.get("persona", data)
         persona = db.query(Persona).first()
         if not persona:
             persona = Persona()
             db.add(persona)
-        persona.name = persona_data.get("name", persona.name or "")
-        persona.handle = persona_data.get("handle", persona.handle or "")
-        persona.niche = persona_data.get("niche", persona.niche or "")
-        persona.bio = persona_data.get("bio", persona.bio or "")
-        persona.dos_donts = persona_data.get("dos_donts", persona.dos_donts or "")
-        persona.style_notes = persona_data.get("style_notes", persona.style_notes or "")
+
+        is_new_format = (
+            "basic_info" in persona_data
+            or "backstory" in persona_data
+            or "voice_range" in persona_data
+            or "content_categories" in persona_data
+            or "tweet_formulas" in persona_data
+        )
+        if is_new_format:
+            existing = {}
+            if persona.persona_extended:
+                try:
+                    existing = json.loads(persona.persona_extended)
+                except (TypeError, ValueError):
+                    pass
+            merged = {**existing, **persona_data}
+            persona.persona_extended = json.dumps(merged, ensure_ascii=False)
+            basic = persona_data.get("basic_info") or existing.get("basic_info") or {}
+            persona.name = basic.get("name", persona.name or "")
+            persona.handle = basic.get("handle", persona.handle or "")
+            persona.niche = basic.get("actual_niche", basic.get("niche", persona.niche or ""))
+            persona.bio = persona_data.get("bio", persona.bio or "")
+            dd = persona_data.get("dos_donts")
+            if isinstance(dd, dict):
+                do_list = dd.get("do") or []
+                dont_list = dd.get("dont") or []
+                do_str = "; ".join(do_list) if do_list and isinstance(do_list[0], str) else (str(do_list) if do_list else "")
+                dont_str = "; ".join(dont_list) if dont_list and isinstance(dont_list[0], str) else (str(dont_list) if dont_list else "")
+                persona.dos_donts = f"Do: {do_str}. Don't: {dont_str}" if dont_str else (f"Do: {do_str}" if do_str else (persona.dos_donts or ""))
+            else:
+                persona.dos_donts = str(dd) if dd else (persona.dos_donts or "")
+            persona.style_notes = persona_data.get("style_notes", persona.style_notes or "")
+        else:
+            persona.persona_extended = None
+            persona.name = persona_data.get("name", persona.name or "")
+            persona.handle = persona_data.get("handle", persona.handle or "")
+            persona.niche = persona_data.get("niche", persona.niche or "")
+            persona.bio = persona_data.get("bio", persona.bio or "")
+            persona.dos_donts = persona_data.get("dos_donts", persona.dos_donts or "")
+            persona.style_notes = persona_data.get("style_notes", persona.style_notes or "")
 
         if "voice_genome" in data:
             vg = data["voice_genome"]

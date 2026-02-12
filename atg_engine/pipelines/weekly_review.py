@@ -50,7 +50,7 @@ def run(**kwargs) -> str:
     db = SessionLocal()
     try:
         persona = db.query(Persona).first()
-        persona_context = persona.to_prompt_context() if persona else "No persona defined."
+        persona_context = persona.get_prompt_context("full") if persona else "No persona defined."
         genome = db.query(VoiceGenome).order_by(VoiceGenome.last_updated.desc()).first()
         strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
         if not genome:

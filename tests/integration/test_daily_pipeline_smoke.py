@@ -32,10 +32,13 @@ def _init_db():
 def test_daily_pipeline_imports_and_context_fetch():
     """Verify pipeline can be imported and context fetch runs without error."""
     from atg_engine.pipelines.daily_generation import _fetch_context
-    genome_json, strategy_json, persona_context = _fetch_context()
+    genome_json, strategy_json, persona = _fetch_context()
     assert isinstance(genome_json, str)
     assert isinstance(strategy_json, str)
-    assert isinstance(persona_context, str)
+    assert persona is None or hasattr(persona, "get_prompt_context")
+    if persona:
+        assert isinstance(persona.get_prompt_context("writer"), str)
+        assert isinstance(persona.get_prompt_context("full"), str)
 
 
 def test_save_approved_only():

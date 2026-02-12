@@ -17,7 +17,7 @@ def _fetch_persona_context() -> str:
     db = SessionLocal()
     try:
         persona = db.query(Persona).first()
-        return persona.to_prompt_context() if persona else "No persona defined yet."
+        return persona.get_prompt_context("curation") if persona else "No persona defined yet."
     finally:
         db.close()
 

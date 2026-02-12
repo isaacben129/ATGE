@@ -40,6 +40,19 @@ def main():
     p_trending.add_argument("--dry-run", action="store_true", help="Run pipeline but do not save to DB")
     p_trending.set_defaults(func=_run_trending)
 
+    # run-viral-spin
+    p_viral = subparsers.add_parser("run-viral-spin", help="Viral pipeline: discover by category, breakdown, spin and/or quote, gatekeeper, save")
+    p_viral.add_argument("--mode", choices=["spin", "quote", "both"], default="both", help="Output: spin (originals), quote (commentary), or both")
+    p_viral.add_argument("--categories", type=str, default="", help="Comma-separated category names to search (default: all from persona)")
+    p_viral.add_argument("--tweets-per-category", type=int, default=5, help="Max tweets to fetch per category")
+    p_viral.add_argument("--min-likes", type=int, default=100, help="Minimum likes threshold")
+    p_viral.add_argument("--min-retweets", type=int, default=10, help="Minimum retweets threshold")
+    p_viral.add_argument("--query", type=str, default="", help="Fallback search query when persona has no content_categories")
+    p_viral.add_argument("--max-results", type=int, default=15, help="Max results when using fallback single search")
+    p_viral.add_argument("--no-verbose", action="store_true", help="Disable verbose output")
+    p_viral.add_argument("--dry-run", action="store_true", help="Run pipeline but do not save to DB")
+    p_viral.set_defaults(func=_run_viral_spin)
+
     # dashboard
     p_dashboard = subparsers.add_parser("dashboard", help="Show CLI scoreboard (followers, engagement, evolution)")
     p_dashboard.set_defaults(func=_dashboard)
@@ -96,6 +109,18 @@ def main():
                 verbose=not getattr(args, "no_verbose", False),
                 dry_run=getattr(args, "dry_run", False),
             )
+        elif args.command == "run-viral-spin":
+            func(
+                mode=getattr(args, "mode", "both"),
+                categories=getattr(args, "categories", "") or None,
+                tweets_per_category=getattr(args, "tweets_per_category", 5),
+                min_likes=getattr(args, "min_likes", 100),
+                min_retweets=getattr(args, "min_retweets", 10),
+                query=getattr(args, "query", ""),
+                max_results=getattr(args, "max_results", 15),
+                verbose=not getattr(args, "no_verbose", False),
+                dry_run=getattr(args, "dry_run", False),
+            )
         elif args.command == "dashboard":
             func()
         elif args.command == "scheduler":
@@ -133,6 +158,11 @@ def _run_weekly(**kwargs):
 
 def _run_trending(**kwargs):
     from atg_engine.pipelines.trending_content_pipeline import run
+    print(run(**kwargs))
+
+
+def _run_viral_spin(**kwargs):
+    from atg_engine.pipelines.viral_spin_and_quote_pipeline import run
     print(run(**kwargs))
 
 

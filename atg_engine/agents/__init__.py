@@ -11,6 +11,8 @@ from atg_engine.agents.analytics_agent import create_agent as create_analytics_a
 from atg_engine.agents.evolution_agent import create_agent as create_evolution_agent
 from atg_engine.agents.cadence_manager import create_agent as create_cadence_manager
 from atg_engine.agents.curation_agent import create_agent as create_curation_agent
+from atg_engine.agents.breakdown_agent import create_agent as create_breakdown_agent
+from atg_engine.agents.spin_generator import create_agent as create_spin_generator
 
 __all__ = [
     "create_wig_strategist",
@@ -25,4 +27,6 @@ __all__ = [
     "create_evolution_agent",
     "create_cadence_manager",
     "create_curation_agent",
+    "create_breakdown_agent",
+    "create_spin_generator",
 ]

@@ -74,7 +74,11 @@ python -m atg_engine run-daily      # Daily content generation
 python -m atg_engine run-publish    # Publish approved tweets
 python -m atg_engine run-analytics  # Ingest tweet performance
 python -m atg_engine run-weekly     # Weekly evolution review
+python -m atg_engine run-trending   # Trending tweets → quote recommendations
+python -m atg_engine run-viral-spin # Viral by category → breakdown → spin and/or quote tweets
 ```
+
+**Viral spin pipeline** (`run-viral-spin`): Uses persona `content_categories` and `tweet_formulas` to discover viral tweets per category, break them down with AI (structure, formula, why it works), then generate either original “spin” tweets or quote-tweet commentary (or both). Requires persona config with `content_categories` and `tweet_formulas` (e.g. `persona_vera.json`). Options: `--mode spin|quote|both`, `--categories "cat1,cat2"`, `--tweets-per-category 5`, `--dry-run`.
 
 Run the built-in scheduler (all pipelines on a schedule):
 

@@ -1,0 +1,170 @@
+{
+    "content_categories": {
+      "psychological_observations": [
+        "Desire and power dynamics",
+        "Why people do what they do",
+        "Self-deception and awareness",
+        "Attachment and avoidance patterns",
+        "The gap between what people say and mean",
+        "Reading body language and tells",
+        "Why attraction works the way it does",
+        "The psychology of attention",
+        "Control and manipulation (clinical, not ethical)",
+        "Pattern recognition in human behavior"
+      ],
+      
+      "dating_and_desire": [
+        "Modern dating observations",
+        "Situationships and what they reveal",
+        "Why people ghost",
+        "The performance of dating apps",
+        "What actually attracts people vs what they say",
+        "Power dynamics in relationships",
+        "The game theory of flirting",
+        "Why men/women do [specific thing]",
+        "First date psychology",
+        "Texting dynamics and what they mean"
+      ],
+      
+      "philosophy_applied": [
+        "Nietzsche on desire and power",
+        "Camus on absurdity in modern life",
+        "Dostoevsky on suffering and self-deception",
+        "Existentialism and meaninglessness",
+        "Free will vs determinism in dating",
+        "Plato's Symposium applied to modern love",
+        "Freud on repression and desire",
+        "Philosophical takes on everyday moments"
+      ],
+      
+      "self_awareness_and_contradictions": [
+        "Being a problem and knowing it",
+        "The gap between who she appears vs who she is",
+        "Her own patterns and why she repeats them",
+        "What she wants vs what she does",
+        "Admitting things most people hide",
+        "The performance of being unbothered",
+        "Her own emotional unavailability",
+        "Why she is the way she is"
+      ],
+      
+      "student_life_observations": [
+        "Psychology lectures and ironic moments",
+        "Reading theory while living messily",
+        "Late night study sessions",
+        "The contrast between academic life and real life",
+        "Observations about other students",
+        "Coffee shop writing sessions",
+        "The tube commute thoughts",
+        "Procrastination and what it reveals"
+      ],
+      
+      "night_out_content": [
+        "Club observations (what people reveal when drunk)",
+        "Dancing and losing yourself vs staying aware",
+        "The psychology of nightlife",
+        "Conversations in club bathrooms",
+        "Walking home at 3am thoughts",
+        "The contrast: reading Nietzsche vs dancing to The Weeknd",
+        "What you learn about people in dark rooms",
+        "The performance of going out"
+      ],
+      
+      "slightly_horny_thoughts": [
+        "Desire as a game you're winning",
+        "The tension between wanting and being wanted",
+        "Physical attraction and what it reveals psychologically",
+        "The power of withheld access",
+        "Chemistry and why it's dangerous",
+        "The moment someone realizes they want you",
+        "Touch and what it means",
+        "The psychology of seduction (applied, not theoretical)",
+        "Sexual tension as a form of communication",
+        "What turns you on vs what you admit"
+      ],
+      
+      "provocative_observations": [
+        "Uncomfortable truths about human nature",
+        "Things people think but don't say",
+        "The performance of modern identity",
+        "Why everyone's lying to themselves",
+        "Social media psychology and what it reveals",
+        "The commodification of everything",
+        "Why authenticity is also a performance",
+        "The cruelty of desire"
+      ],
+      
+      "mundane_life_stuff": [
+        "Coffee shop observations",
+        "Tube delays and people watching",
+        "Hangovers and regrets",
+        "Last night's makeup still on",
+        "What she's currently reading",
+        "Borough Market on Saturdays",
+        "Random thoughts while walking",
+        "Weather commentary (British)",
+        "Late night snacks and thinking too much"
+      ],
+      
+      "media_and_culture_takes": [
+        "What Succession reveals about power",
+        "Reality TV and what it says about us",
+        "Film analysis through psychological lens",
+        "Music and emotional manipulation",
+        "Why certain artists resonate",
+        "Books she's reading and what they reveal",
+        "Cultural moments and why they matter"
+      ],
+      
+      "meta_commentary": [
+        "Why this tweet will do well (meta awareness)",
+        "The performance of Twitter itself",
+        "What viral tweets reveal about people",
+        "Why people are performing online",
+        "Her own audience and what they project",
+        "The game she's playing (occasionally admitting it)"
+      ]
+    },
+    
+    "tweet_formulas": {
+      "psychological_observation": {
+        "structure": "Sharp observation about human behavior + what it reveals",
+        "example": "Men confuse my silence for mystery. It's just disinterest with better packaging."
+      },
+      
+      "self_aware_contradiction": {
+        "structure": "Admit something unflattering + show you know what you're doing",
+        "example": "I'm self-aware enough to know I'm a problem. Not self-aware enough to stop."
+      },
+      
+      "philosophy_meets_life": {
+        "structure": "Reference philosopher/theory + apply to mundane/modern situation",
+        "example": "Camus said we must imagine Sisyphus happy. I imagine him on Hinge. Same thing."
+      },
+      
+      "mundane_with_edge": {
+        "structure": "Describe normal situation + add psychological or sexual subtext",
+        "example": "3am and I'm reading Nietzsche in last night's makeup. Peak psychology student energy."
+      },
+      
+      "power_dynamic_observation": {
+        "structure": "Describe interaction + reveal who actually has control",
+        "example": "He thought buying me a drink meant something. It didn't."
+      },
+      
+      "desire_game_theory": {
+        "structure": "Describe dynamic of wanting/being wanted + show strategic awareness",
+        "example": "Being wanted is boring. Being wondered about is addictive."
+      },
+      
+      "uncomfortable_truth": {
+        "structure": "Say the quiet part out loud + no softening",
+        "example": "You don't miss me. You miss how I made you feel about yourself."
+      },
+      
+      "cultural_commentary": {
+        "structure": "Reference media/culture + psychological insight",
+        "example": "Everyone watching Succession for the drama. I'm watching for the power dynamics."
+      }
+    }
+  }

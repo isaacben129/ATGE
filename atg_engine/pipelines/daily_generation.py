@@ -30,7 +30,6 @@ def _fetch_context():
     db = SessionLocal()
     try:
         persona = db.query(Persona).first()
-        persona_context = persona.to_prompt_context() if persona else "No persona defined yet."
         genome = db.query(VoiceGenome).order_by(VoiceGenome.last_updated.desc()).first()
         strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
         genome_json = "{}"
@@ -48,11 +47,12 @@ def _fetch_context():
                 "thread_ratio": strategy.thread_ratio,
                 "experimentation_rate": strategy.experimentation_rate,
             })
-        if persona_context == "No persona defined yet.":
+        no_persona_msg = "No persona defined yet."
+        if not persona or persona.get_prompt_context("full") == no_persona_msg:
             logger.warning(
                 "Persona is empty. Content may be off-brand. Set PERSONA_CONFIG_PATH or add persona_mila.json and re-run, or run: python -m atg_engine init-persona --config <path>"
             )
-        return genome_json, strategy_json, persona_context
+        return genome_json, strategy_json, persona
     finally:
         db.close()
 
@@ -120,7 +120,10 @@ def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
 
 def run(**kwargs) -> str:
     validate_env(require_llm=True, require_twitter=False)
-    genome_json, strategy_json, persona_context = _fetch_context()
+    genome_json, strategy_json, persona = _fetch_context()
+    no_persona_msg = "No persona defined yet."
+    idea_context = persona.get_prompt_context("full") if persona else no_persona_msg
+    writer_context = persona.get_prompt_context("writer") if persona else no_persona_msg
     n_ideas = kwargs.get("n_ideas", 3)
 
     idea_agent = create_idea_generator()
@@ -136,7 +139,7 @@ def run(**kwargs) -> str:
             + " tweet ideas (topic + angle). These ideas will be used for hooks and full tweets.\n\n"
             "Inputs:\n"
             "- Persona (stay in character): "
-            + persona_context
+            + idea_context
             + "\n- Voice/strategy: genome="
             + genome_json
             + ", strategy="
@@ -164,7 +167,7 @@ def run(**kwargs) -> str:
         description=(
             "For each idea from the previous task (use the exact topic and angle for each), generate one high-impact hook and tag its type.\n\n"
             "Inputs: The list of ideas from the previous task; persona (for voice): "
-            + persona_context
+            + writer_context
             + "\n\n"
             "Steps:\n"
             "1. Take each idea in order (Idea 1, Idea 2, ...).\n"
@@ -184,14 +187,15 @@ def run(**kwargs) -> str:
         description=(
             "Using the ideas and hooks from the previous tasks, write 1–3 full tweet variants per idea. Every tweet must stay in character and be under 280 characters.\n\n"
             "Inputs: Ideas and hooks from the previous tasks; persona: "
-            + persona_context
+            + writer_context
             + "; voice: "
             + genome_json
             + "\n\n"
             "Steps:\n"
-            "1. For each idea, use its hook and the voice parameters to write 1–3 full tweet variants.\n"
-            "2. Stay in character for the persona. Every tweet must be under 280 characters.\n"
-            "3. Output in the exact format specified in expected_output."
+            "1. Use the example tweets in her voice as style anchors. Every tweet should work on two levels—surface and psychological undercurrent.\n"
+            "2. For each idea, use its hook and the voice parameters to write 1–3 full tweet variants.\n"
+            "3. Stay in character for the persona. Vary sentence length: short and sharp for impact, longer for seduction. No emojis, no hashtags, no exclamation points unless ironic. Every tweet must be under 280 characters.\n"
+            "4. Output in the exact format specified in expected_output."
         ),
         expected_output=(
             "For each idea, one block in this format:\n"
@@ -205,7 +209,7 @@ def run(**kwargs) -> str:
         description=(
             "Pick the top 1–2 ideas from the ideas and writer output, then build a short thread with narrative structure. Stay in character; each tweet under 280 characters.\n\n"
             "Inputs: Ideas and writer output from previous tasks; persona: "
-            + persona_context
+            + writer_context
             + "\n\n"
             "Steps:\n"
             "1. Choose the top 1–2 ideas to turn into a thread.\n"
@@ -225,7 +229,7 @@ def run(**kwargs) -> str:
         description=(
             "Review each tweet or thread piece from the writer and thread tasks for factual and policy compliance. Content should align with the persona voice; your job is only to approve or block based on facts and policy.\n\n"
             "Inputs: All tweet content from the writer and thread tasks; persona (for voice alignment): "
-            + persona_context
+            + writer_context
             + "\n\n"
             "Rules:\n"
             "- Verifiable factual claims (science, health, finance, news) are allowed only if verifiable; otherwise block.\n"
