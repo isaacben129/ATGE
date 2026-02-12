@@ -65,6 +65,11 @@ def _add_missing_persona_extended_column():
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
-    _add_missing_tweet_candidate_columns()
-    _add_missing_persona_extended_column()
+    """Create all tables and run migrations. Raises on DB/schema failure after logging."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        _add_missing_tweet_candidate_columns()
+        _add_missing_persona_extended_column()
+    except Exception as e:
+        logger.warning("DB init failed: %s", e, exc_info=True)
+        raise

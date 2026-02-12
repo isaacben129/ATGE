@@ -127,7 +127,11 @@ def run(**kwargs) -> str:
     verbose = kwargs.get("verbose", True)
 
     validate_env(require_llm=True, require_twitter=True)
-    ensure_bootstrap()
+    try:
+        ensure_bootstrap()
+    except Exception as e:
+        logger.warning("Bootstrap failed in viral pipeline: %s", e, exc_info=True)
+        return f"Viral pipeline skipped: bootstrap failed ({e})."
 
     persona, curation_ctx, writer_ctx, viral = _fetch_persona_and_viral_context()
     content_categories = viral.get("content_categories") or {}
@@ -136,23 +140,27 @@ def run(**kwargs) -> str:
     if curation_ctx == "No persona defined yet.":
         logger.warning("Persona is empty. Run init-persona with a config that has content_categories and tweet_formulas for best results.")
 
-    if content_categories:
-        trending = discover_by_categories(
-            content_categories,
-            tweets_per_category=tweets_per_category,
-            min_likes=min_likes,
-            min_retweets=min_retweets,
-            category_filter=category_filter,
-        )
-    else:
-        trending = discover_trending_tweets(
-            query=kwargs.get("query", ""),
-            max_results=kwargs.get("max_results", 15),
-            min_likes=min_likes,
-            min_retweets=min_retweets,
-        )
-        for t in trending:
-            t["matched_category"] = t.get("matched_category", "viral_content")
+    try:
+        if content_categories:
+            trending = discover_by_categories(
+                content_categories,
+                tweets_per_category=tweets_per_category,
+                min_likes=min_likes,
+                min_retweets=min_retweets,
+                category_filter=category_filter,
+            )
+        else:
+            trending = discover_trending_tweets(
+                query=kwargs.get("query", ""),
+                max_results=kwargs.get("max_results", 15),
+                min_likes=min_likes,
+                min_retweets=min_retweets,
+            )
+            for t in trending:
+                t["matched_category"] = t.get("matched_category", "viral_content")
+    except Exception as e:
+        logger.warning("Viral discovery failed: %s", e, exc_info=True)
+        return f"Viral discovery skipped: search unavailable ({e})."
 
     if not trending:
         return "No viral tweets found. Try lower min_likes/min_retweets or add content_categories to persona."

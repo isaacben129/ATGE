@@ -126,4 +126,8 @@ def start_scheduler():
     scheduler.add_job(run_trending_job, CronTrigger(minute=t["minute"], hour=t["hour"], day_of_week=t["day_of_week"]))
     logger.info("Scheduler started: daily=%s, publish=%sh, analytics=%sh, weekly=%s, trending=%s",
                 DAILY_GENERATION_CRON, PUBLISHING_INTERVAL_HOURS, PERFORMANCE_INTERVAL_HOURS, WEEKLY_REVIEW_CRON, TRENDING_CONTENT_CRON)
-    scheduler.start()
+    try:
+        scheduler.start()
+    except Exception:
+        logger.exception("Scheduler failed to start or stopped with an error.")
+        raise

@@ -75,12 +75,16 @@ def run(**kwargs) -> str:
             "Persona is empty. Curation may be off-brand. Set PERSONA_CONFIG_PATH or run: python -m atg_engine init-persona --config <path>"
         )
 
-    trending = discover_trending_tweets(
-        query=kwargs.get("query", ""),
-        max_results=kwargs.get("max_results", 10),
-        min_likes=kwargs.get("min_likes", 100),
-        min_retweets=kwargs.get("min_retweets", 10),
-    )
+    try:
+        trending = discover_trending_tweets(
+            query=kwargs.get("query", ""),
+            max_results=kwargs.get("max_results", 10),
+            min_likes=kwargs.get("min_likes", 100),
+            min_retweets=kwargs.get("min_retweets", 10),
+        )
+    except Exception as e:
+        logger.warning("Trending discovery failed: %s", e, exc_info=True)
+        return f"Trending discovery skipped: search unavailable ({e})."
 
     if not trending:
         return "No trending tweets found matching criteria."

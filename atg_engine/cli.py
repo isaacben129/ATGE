@@ -1,6 +1,20 @@
 """CLI entrypoint: run-daily, run-publish, run-analytics, run-weekly, dashboard, scheduler, db init."""
 import argparse
+import logging
 import sys
+import time
+
+logger = logging.getLogger(__name__)
+
+RUN_COMMANDS = {"run-daily", "run-publish", "run-analytics", "run-weekly", "run-trending", "run-viral-spin"}
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """True if the error looks transient (connection/timeout) and worth one retry."""
+    if isinstance(exc, (ConnectionError, OSError)):
+        return True
+    msg = str(exc).lower()
+    return "connection" in msg or "timeout" in msg or "remote end closed" in msg
 
 
 def main():
@@ -84,56 +98,81 @@ def main():
         parser.print_help()
         sys.exit(1)
     try:
-        if args.command == "run-daily":
-            func(
-                n_ideas=getattr(args, "n_ideas", 3),
-                verbose=not getattr(args, "no_verbose", False),
-                dry_run=getattr(args, "dry_run", False),
-            )
-        elif args.command == "run-publish":
-            func(
-                limit=getattr(args, "limit", 5),
-                dry_run=getattr(args, "dry_run", False) or getattr(args, "preview", False),
-                preview=getattr(args, "preview", False),
-            )
-        elif args.command == "run-analytics":
-            func()
-        elif args.command == "run-weekly":
-            func(verbose=not getattr(args, "no_verbose", False))
-        elif args.command == "run-trending":
-            func(
-                query=getattr(args, "query", ""),
-                max_results=getattr(args, "max_results", 10),
-                min_likes=getattr(args, "min_likes", 100),
-                min_retweets=getattr(args, "min_retweets", 10),
-                verbose=not getattr(args, "no_verbose", False),
-                dry_run=getattr(args, "dry_run", False),
-            )
-        elif args.command == "run-viral-spin":
-            func(
-                mode=getattr(args, "mode", "both"),
-                categories=getattr(args, "categories", "") or None,
-                tweets_per_category=getattr(args, "tweets_per_category", 5),
-                min_likes=getattr(args, "min_likes", 100),
-                min_retweets=getattr(args, "min_retweets", 10),
-                query=getattr(args, "query", ""),
-                max_results=getattr(args, "max_results", 15),
-                verbose=not getattr(args, "no_verbose", False),
-                dry_run=getattr(args, "dry_run", False),
-            )
-        elif args.command == "dashboard":
-            func()
-        elif args.command == "scheduler":
-            func()
-        elif args.command == "db":
-            func()
-        elif args.command == "init-persona":
-            func(config=getattr(args, "config", None))
-        else:
-            func()
+        _run_with_retry(args, func)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
     except Exception as e:
+        logger.exception("Command failed: %s", e)
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def _run_with_retry(args, func):
+    """Execute func with args; for run-* commands, retry once on transient errors."""
+    run_once = lambda: _invoke_func(args, func)
+    if args.command not in RUN_COMMANDS:
+        run_once()
+        return
+    try:
+        run_once()
+    except Exception as e:
+        if _is_transient_error(e):
+            logger.warning("Command failed (transient?), retrying once: %s", e)
+            time.sleep(2)
+            run_once()
+        else:
+            raise
+
+
+def _invoke_func(args, func):
+    if args.command == "run-daily":
+        func(
+            n_ideas=getattr(args, "n_ideas", 3),
+            verbose=not getattr(args, "no_verbose", False),
+            dry_run=getattr(args, "dry_run", False),
+        )
+    elif args.command == "run-publish":
+        func(
+            limit=getattr(args, "limit", 5),
+            dry_run=getattr(args, "dry_run", False) or getattr(args, "preview", False),
+            preview=getattr(args, "preview", False),
+        )
+    elif args.command == "run-analytics":
+        func()
+    elif args.command == "run-weekly":
+        func(verbose=not getattr(args, "no_verbose", False))
+    elif args.command == "run-trending":
+        func(
+            query=getattr(args, "query", ""),
+            max_results=getattr(args, "max_results", 10),
+            min_likes=getattr(args, "min_likes", 100),
+            min_retweets=getattr(args, "min_retweets", 10),
+            verbose=not getattr(args, "no_verbose", False),
+            dry_run=getattr(args, "dry_run", False),
+        )
+    elif args.command == "run-viral-spin":
+        func(
+            mode=getattr(args, "mode", "both"),
+            categories=getattr(args, "categories", "") or None,
+            tweets_per_category=getattr(args, "tweets_per_category", 5),
+            min_likes=getattr(args, "min_likes", 100),
+            min_retweets=getattr(args, "min_retweets", 10),
+            query=getattr(args, "query", ""),
+            max_results=getattr(args, "max_results", 15),
+            verbose=not getattr(args, "no_verbose", False),
+            dry_run=getattr(args, "dry_run", False),
+        )
+    elif args.command == "dashboard":
+        func()
+    elif args.command == "scheduler":
+        func()
+    elif args.command == "db":
+        func()
+    elif args.command == "init-persona":
+        func(config=getattr(args, "config", None))
+    else:
+        func()
 
 
 def _run_daily(**kwargs):
@@ -170,47 +209,51 @@ def _dashboard(**kwargs):
     from atg_engine.db.session import SessionLocal
     from atg_engine.models import AccountSnapshot, TweetPerformance, StrategyState, MutationLog
 
-    db = SessionLocal()
     try:
-        perf_list = db.query(TweetPerformance).order_by(TweetPerformance.timestamp.desc()).limit(100).all()
-        avg_engagement = (
-            sum(p.engagement_rate for p in perf_list) / len(perf_list)
-            if perf_list else 0.0
-        )
-        mutations = db.query(MutationLog).count()
-        strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
-        daily_target = strategy.daily_post_target if strategy else 0
-        snapshots = db.query(AccountSnapshot).order_by(AccountSnapshot.recorded_at.desc()).limit(2).all()
-        follower_count = snapshots[0].follower_count if snapshots else None
-        follower_delta = (snapshots[0].follower_count - snapshots[1].follower_count) if len(snapshots) >= 2 else None
-
+        db = SessionLocal()
         try:
-            from rich.console import Console
-            from rich.table import Table
-            console = Console()
-            table = Table(title="ATGE Scoreboard")
-            table.add_column("Metric", style="cyan")
-            table.add_column("Value", style="green")
-            if follower_count is not None:
-                table.add_row("Follower count (account)", str(follower_count))
-                if follower_delta is not None:
-                    table.add_row("Follower delta (since last ingestion)", f"{follower_delta:+d}")
-            table.add_row("Avg engagement rate", f"{avg_engagement:.4f}")
-            table.add_row("Mutation log count", str(mutations))
-            table.add_row("Daily post target", str(daily_target))
-            console.print(table)
-        except ImportError:
-            print("Metric                                  | Value")
-            print("----------------------------------------|--------")
-            if follower_count is not None:
-                print(f"Follower count (account)              | {follower_count}")
-                if follower_delta is not None:
-                    print(f"Follower delta (since last ingestion) | {follower_delta:+d}")
-            print(f"Avg engagement rate                    | {avg_engagement:.4f}")
-            print(f"Mutation log count                     | {mutations}")
-            print(f"Daily post target                      | {daily_target}")
-    finally:
-        db.close()
+            perf_list = db.query(TweetPerformance).order_by(TweetPerformance.timestamp.desc()).limit(100).all()
+            avg_engagement = (
+                sum(p.engagement_rate for p in perf_list) / len(perf_list)
+                if perf_list else 0.0
+            )
+            mutations = db.query(MutationLog).count()
+            strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
+            daily_target = strategy.daily_post_target if strategy else 0
+            snapshots = db.query(AccountSnapshot).order_by(AccountSnapshot.recorded_at.desc()).limit(2).all()
+            follower_count = snapshots[0].follower_count if snapshots else None
+            follower_delta = (snapshots[0].follower_count - snapshots[1].follower_count) if len(snapshots) >= 2 else None
+
+            try:
+                from rich.console import Console
+                from rich.table import Table
+                console = Console()
+                table = Table(title="ATGE Scoreboard")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="green")
+                if follower_count is not None:
+                    table.add_row("Follower count (account)", str(follower_count))
+                    if follower_delta is not None:
+                        table.add_row("Follower delta (since last ingestion)", f"{follower_delta:+d}")
+                table.add_row("Avg engagement rate", f"{avg_engagement:.4f}")
+                table.add_row("Mutation log count", str(mutations))
+                table.add_row("Daily post target", str(daily_target))
+                console.print(table)
+            except ImportError:
+                print("Metric                                  | Value")
+                print("----------------------------------------|--------")
+                if follower_count is not None:
+                    print(f"Follower count (account)              | {follower_count}")
+                    if follower_delta is not None:
+                        print(f"Follower delta (since last ingestion) | {follower_delta:+d}")
+                print(f"Avg engagement rate                    | {avg_engagement:.4f}")
+                print(f"Mutation log count                     | {mutations}")
+                print(f"Daily post target                      | {daily_target}")
+        finally:
+            db.close()
+    except Exception:
+        print("Dashboard unavailable: could not connect to database. Check DATABASE_URL and run `db init`.", file=sys.stderr)
+        sys.exit(1)
 
 
 def _scheduler(**kwargs):

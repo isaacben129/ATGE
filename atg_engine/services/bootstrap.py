@@ -37,46 +37,50 @@ def ensure_bootstrap():
     """Create default Persona, VoiceGenome, and StrategyState if missing. Call before daily/weekly.
     If the persona is empty and PERSONA_CONFIG_PATH is set (or persona_mila.json exists in project root),
     automatically applies that config so content stays on-brand."""
-    db = SessionLocal()
     config_path_to_apply: Path | None = None
     try:
-        persona = db.query(Persona).first()
-        if not persona:
-            persona = Persona(
-                name="",
-                handle="",
-                niche="",
-                bio="",
-                dos_donts="",
-                style_notes="",
-            )
-            db.add(persona)
-        genome = db.query(VoiceGenome).order_by(VoiceGenome.last_updated.desc()).first()
-        if not genome:
-            genome = VoiceGenome(
-                tone_traits="[]",
-                language_patterns="[]",
-                taboo_topics="[]",
-                risk_tolerance=0.5,
-                aggressiveness=0.5,
-                humor_level=0.5,
-                controversy_level=0.5,
-            )
-            db.add(genome)
-        strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
-        if not strategy:
-            strategy = StrategyState(
-                wig="Follower growth",
-                daily_post_target=5,
-                thread_ratio=0.2,
-                experimentation_rate=0.25,
-            )
-            db.add(strategy)
-        db.commit()
-        if _persona_is_empty(persona):
-            config_path_to_apply = _get_persona_config_path()
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            persona = db.query(Persona).first()
+            if not persona:
+                persona = Persona(
+                    name="",
+                    handle="",
+                    niche="",
+                    bio="",
+                    dos_donts="",
+                    style_notes="",
+                )
+                db.add(persona)
+            genome = db.query(VoiceGenome).order_by(VoiceGenome.last_updated.desc()).first()
+            if not genome:
+                genome = VoiceGenome(
+                    tone_traits="[]",
+                    language_patterns="[]",
+                    taboo_topics="[]",
+                    risk_tolerance=0.5,
+                    aggressiveness=0.5,
+                    humor_level=0.5,
+                    controversy_level=0.5,
+                )
+                db.add(genome)
+            strategy = db.query(StrategyState).order_by(StrategyState.last_reviewed.desc()).first()
+            if not strategy:
+                strategy = StrategyState(
+                    wig="Follower growth",
+                    daily_post_target=5,
+                    thread_ratio=0.2,
+                    experimentation_rate=0.25,
+                )
+                db.add(strategy)
+            db.commit()
+            if _persona_is_empty(persona):
+                config_path_to_apply = _get_persona_config_path()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.exception("Bootstrap failed: %s", e)
+        raise RuntimeError(f"Bootstrap failed (DB unavailable or schema issue): {e}") from e
     if config_path_to_apply:
         try:
             msg = apply_persona_config(config_path_to_apply)
