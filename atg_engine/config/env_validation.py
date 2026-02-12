@@ -9,6 +9,8 @@ from atg_engine.config.settings import (
     TWITTER_API_KEY,
     TWITTER_API_SECRET,
     TWITTER_BEARER_TOKEN,
+    TWITTER_READ_PRIMARY,
+    XPOZ_API_KEY,
 )
 
 
@@ -33,6 +35,8 @@ def validate_env(*, require_llm: bool = True, require_twitter: bool = False) -> 
             missing.append("TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET (set in .env)")
         if not (TWITTER_BEARER_TOKEN and TWITTER_BEARER_TOKEN.strip()):
             missing.append("TWITTER_BEARER_TOKEN (set in .env)")
+        if (TWITTER_READ_PRIMARY or "").strip().lower() == "xpoz" and not (XPOZ_API_KEY and XPOZ_API_KEY.strip()):
+            missing.append("XPOZ_API_KEY (set in .env when TWITTER_READ_PRIMARY=xpoz)")
 
     if missing:
         raise ValueError(

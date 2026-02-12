@@ -167,6 +167,8 @@ Set these in the deployment platform (Railway Variables or Fly secrets). Never p
 
 You can use `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET` instead of `TWITTER_API_KEY` / `TWITTER_API_SECRET` (same credentials; portal may show "Client ID" / "Client Secret").
 
+**Twitter API: free-first usage.** Posting always uses the official X API. For reads (tweet metrics, follower count) and search (trending discovery), the app tries a primary provider first and falls back to the official API on failure or rate limit (429/503). For [Xpoz](https://xpoz.ai) (free reads): set `XPOZ_API_KEY` in `.env` (from xpoz.ai/settings), optionally `XPOZ_TWITTER_USERNAME` for follower count, then `TWITTER_READ_PRIMARY=xpoz` and `TWITTER_READ_FALLBACK=official`. Set `TWITTER_SEARCH_PRIMARY` to a free search provider when one is added (until then, both default to `official`). See [X API access levels](https://developer.x.com/en/portal/products) (Free, Basic, Pro) for tier limits.
+
 Optional (scheduler): `DAILY_GENERATION_CRON`, `PUBLISHING_INTERVAL_HOURS`, `PERFORMANCE_INTERVAL_HOURS`, `WEEKLY_REVIEW_CRON` (see `.env.example` or config).
 
 Optional (Supabase client): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (see [Using Supabase](#using-supabase)).

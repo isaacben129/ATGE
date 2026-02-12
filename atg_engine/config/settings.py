@@ -36,8 +36,18 @@ TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
 
 # Read provider: "official" (batched API) or "xpoz" (when implemented)
 TWITTER_READ_PROVIDER = os.getenv("TWITTER_READ_PROVIDER", "official")
+# Free-first: primary tried first, fallback used on failure/rate limit. Default both "official".
+TWITTER_READ_PRIMARY = os.getenv("TWITTER_READ_PRIMARY", "official").strip().lower() or "official"
+TWITTER_READ_FALLBACK = os.getenv("TWITTER_READ_FALLBACK", "official").strip().lower() or "official"
+# Search provider: same idea. Use "official" until a free search source is added.
+TWITTER_SEARCH_PRIMARY = os.getenv("TWITTER_SEARCH_PRIMARY", "official").strip().lower() or "official"
+TWITTER_SEARCH_FALLBACK = os.getenv("TWITTER_SEARCH_FALLBACK", "official").strip().lower() or "official"
 # Optional: cap tweet IDs per ingestion run to stay under free tier (e.g. 30 * 30 days = 900/month)
 PERFORMANCE_INGESTION_MAX_TWEETS = int(os.getenv("PERFORMANCE_INGESTION_MAX_TWEETS", "50"))
+
+# Xpoz (free read provider): API key from xpoz.ai/settings; optional username for get_me_follower_count
+XPOZ_API_KEY = os.getenv("XPOZ_API_KEY", "").strip()
+XPOZ_TWITTER_USERNAME = os.getenv("XPOZ_TWITTER_USERNAME", "").strip()
 
 # Persona: optional path to JSON config; if set and DB persona is empty, bootstrap will auto-apply it
 PERSONA_CONFIG_PATH = os.getenv("PERSONA_CONFIG_PATH", "").strip()

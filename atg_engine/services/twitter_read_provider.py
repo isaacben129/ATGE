@@ -2,8 +2,23 @@
 Twitter read-provider abstraction: metrics and follower count.
 Posting stays in twitter_api; only read operations go through a provider
 so we can swap to a free-tier alternative (e.g. Xpoz) when available.
+Free-first: use TWITTER_READ_PRIMARY (e.g. xpoz), fallback to TWITTER_READ_FALLBACK (official) on failure.
 """
+import logging
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
+
+
+def _is_retryable_read_error(exc: BaseException) -> bool:
+    """True if we should try the fallback provider (rate limit, not implemented, etc.)."""
+    if isinstance(exc, NotImplementedError):
+        return True
+    if isinstance(exc, RuntimeError) and "Xpoz" in str(exc):
+        return True
+    resp = getattr(exc, "response", None)
+    status = getattr(resp, "status_code", None) if resp is not None else getattr(exc, "status_code", None)
+    return status in (429, 503)
 
 
 class TwitterReadProvider(Protocol):
@@ -16,6 +31,32 @@ class TwitterReadProvider(Protocol):
     def get_me_follower_count(self) -> int | None:
         """Return authenticated user's follower count or None."""
         ...
+
+
+class ChainedTwitterReadProvider:
+    """Tries primary provider; on NotImplementedError or rate limit (429/503), uses fallback."""
+
+    def __init__(self, primary: "TwitterReadProvider", fallback: "TwitterReadProvider") -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def get_tweet_metrics_batch(self, tweet_ids: list[str]) -> dict[str, dict[str, Any]]:
+        try:
+            return self._primary.get_tweet_metrics_batch(tweet_ids)
+        except Exception as e:
+            if _is_retryable_read_error(e):
+                logger.warning("Read primary failed (%s), using fallback: %s", type(e).__name__, e)
+                return self._fallback.get_tweet_metrics_batch(tweet_ids)
+            raise
+
+    def get_me_follower_count(self) -> int | None:
+        try:
+            return self._primary.get_me_follower_count()
+        except Exception as e:
+            if _is_retryable_read_error(e):
+                logger.warning("Read primary failed (%s), using fallback: %s", type(e).__name__, e)
+                return self._fallback.get_me_follower_count()
+            raise
 
 
 class OfficialTwitterReadProvider:
@@ -32,27 +73,43 @@ class OfficialTwitterReadProvider:
 
 class XpozReadProvider:
     """
-    Placeholder for Xpoz (free 100K results/month).
-    When Xpoz exposes a REST API or SDK callable from Python, implement
-    get_tweet_metrics_batch and get_me_follower_count here and set
-    TWITTER_READ_PROVIDER=xpoz. Until then, raises NotImplementedError.
+    Xpoz MCP (free tier): tweet metrics and optional follower count.
+    Requires XPOZ_API_KEY. Set XPOZ_TWITTER_USERNAME for get_me_follower_count; else returns None.
     """
     def get_tweet_metrics_batch(self, tweet_ids: list[str]) -> dict[str, dict[str, Any]]:
-        raise NotImplementedError(
-            "Xpoz read provider not implemented yet. "
-            "When Xpoz offers a callable REST API, implement it here and set TWITTER_READ_PROVIDER=xpoz."
-        )
+        from atg_engine.config.settings import XPOZ_API_KEY
+        from atg_engine.services import xpoz_client
+        if not XPOZ_API_KEY:
+            raise NotImplementedError(
+                "Xpoz read provider requires XPOZ_API_KEY in .env when TWITTER_READ_PRIMARY=xpoz."
+            )
+        return xpoz_client.get_tweet_metrics_batch(tweet_ids)
 
     def get_me_follower_count(self) -> int | None:
-        raise NotImplementedError(
-            "Xpoz read provider not implemented yet. "
-            "When Xpoz offers a callable REST API, implement it here and set TWITTER_READ_PROVIDER=xpoz."
-        )
+        from atg_engine.config.settings import XPOZ_API_KEY, XPOZ_TWITTER_USERNAME
+        from atg_engine.services import xpoz_client
+        if not XPOZ_API_KEY:
+            raise NotImplementedError(
+                "Xpoz read provider requires XPOZ_API_KEY in .env when TWITTER_READ_PRIMARY=xpoz."
+            )
+        if not XPOZ_TWITTER_USERNAME:
+            return None
+        return xpoz_client.get_user_follower_count(XPOZ_TWITTER_USERNAME)
+
+
+def _read_provider_by_name(name: str) -> TwitterReadProvider:
+    """Return a read provider instance by name (official, xpoz)."""
+    n = (name or "official").strip().lower()
+    if n == "xpoz":
+        return XpozReadProvider()
+    return OfficialTwitterReadProvider()
 
 
 def get_read_provider() -> TwitterReadProvider:
-    """Return the configured read provider (official, xpoz, etc.)."""
-    from atg_engine.config.settings import TWITTER_READ_PROVIDER
-    if TWITTER_READ_PROVIDER == "xpoz":
-        return XpozReadProvider()
-    return OfficialTwitterReadProvider()
+    """Return the configured read provider: primary with fallback chain (free-first)."""
+    from atg_engine.config.settings import TWITTER_READ_PRIMARY, TWITTER_READ_FALLBACK
+    primary = _read_provider_by_name(TWITTER_READ_PRIMARY)
+    fallback = _read_provider_by_name(TWITTER_READ_FALLBACK)
+    if TWITTER_READ_PRIMARY == TWITTER_READ_FALLBACK:
+        return primary
+    return ChainedTwitterReadProvider(primary, fallback)
