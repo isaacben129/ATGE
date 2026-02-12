@@ -14,10 +14,20 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 INITIAL_BACKOFF = 2.0
 
+# Twitter requires at least one "standalone" term when using lang:/is:/has: (conjunction-required operators).
+DEFAULT_SEARCH_TERM = "the"
+VALID_DEFAULT_QUERY = f"{DEFAULT_SEARCH_TERM} -is:retweet lang:en"
+
 
 def _is_retryable_search_error(exc: BaseException) -> bool:
-    """True if we should try the fallback provider (rate limit, NotImplemented, etc.)."""
+    """True if we should try the fallback provider (rate limit, NotImplemented, connection errors, etc.)."""
     if isinstance(exc, NotImplementedError):
+        return True
+    # Connection/transport errors: retry (or fallback) often recovers
+    if isinstance(exc, (ConnectionError, OSError)):
+        return True
+    msg = str(exc).lower()
+    if "connection" in msg or "remote end closed" in msg or "aborted" in msg:
         return True
     resp = getattr(exc, "response", None)
     status = getattr(resp, "status_code", None) if resp is not None else getattr(exc, "status_code", None)
@@ -55,7 +65,7 @@ class OfficialTwitterSearchProvider:
         if client is None:
             return []
 
-        search_query = query if query.strip() else "-is:retweet lang:en"
+        search_query = query.strip() or VALID_DEFAULT_QUERY
         cap = min(max(max_results, 10), 100)
 
         for attempt in range(MAX_RETRIES):

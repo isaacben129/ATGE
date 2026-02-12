@@ -1,7 +1,7 @@
 """Service to discover trending tweets for quote/repost. Uses search provider (free-first with fallback)."""
 from typing import Any
 
-from atg_engine.services.twitter_search_provider import get_search_provider
+from atg_engine.services.twitter_search_provider import VALID_DEFAULT_QUERY, get_search_provider
 
 
 def discover_trending_tweets(
@@ -83,7 +83,7 @@ def discover_by_categories(
             if isinstance(t, str) and t.strip():
                 terms.extend(_topic_to_search_terms(t.strip(), max_terms=2))
         if not terms:
-            query = "-is:retweet lang:en"
+            query = VALID_DEFAULT_QUERY
         else:
             or_part = " OR ".join(f'"{t}"' if " " in t else t for t in terms[:4])
             query = f"({or_part}) -is:retweet lang:en"
