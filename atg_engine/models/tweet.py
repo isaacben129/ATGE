@@ -17,6 +17,7 @@ class TweetCandidate(Base):
     topic: Mapped[str] = mapped_column(String(512), default="")
     hook_type: Mapped[str] = mapped_column(String(128), default="")
     risk_score: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_score: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)  # Quality score 0-10
     approved: Mapped[bool] = mapped_column(Boolean, default=False)
     published: Mapped[bool] = mapped_column(Boolean, default=False)
     tweet_id: Mapped[str] = mapped_column(String(64), nullable=True)

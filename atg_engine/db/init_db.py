@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _add_missing_tweet_candidate_columns():
-    """Add thread_id, thread_sequence, and quote_tweet_id to tweet_candidates if missing (existing DBs)."""
+    """Add thread_id, thread_sequence, quote_tweet_id, and quality_score to tweet_candidates if missing (existing DBs)."""
     insp = inspect(engine)
     if "tweet_candidates" not in insp.get_table_names():
         return
@@ -42,6 +42,17 @@ def _add_missing_tweet_candidate_columns():
                 conn.commit()
             except Exception as e:
                 logger.warning("Could not add quote_tweet_id to tweet_candidates: %s", e)
+        if "quality_score" not in existing:
+            try:
+                # SQLite uses REAL, PostgreSQL uses FLOAT/DOUBLE PRECISION
+                # Try REAL first (SQLite), fallback to FLOAT (PostgreSQL)
+                try:
+                    conn.execute(text("ALTER TABLE tweet_candidates ADD COLUMN quality_score REAL"))
+                except Exception:
+                    conn.execute(text("ALTER TABLE tweet_candidates ADD COLUMN quality_score FLOAT"))
+                conn.commit()
+            except Exception as e:
+                logger.warning("Could not add quality_score to tweet_candidates: %s", e)
         try:
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tweet_candidates_quote_tweet_id ON tweet_candidates (quote_tweet_id)"))
             conn.commit()

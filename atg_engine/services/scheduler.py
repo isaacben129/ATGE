@@ -8,6 +8,7 @@ from atg_engine.config.settings import (
     DAILY_GENERATION_CRON,
     PERFORMANCE_INTERVAL_HOURS,
     PUBLISHING_INTERVAL_HOURS,
+    PUBLISHING_LIMIT_PER_RUN,
     TRENDING_CONTENT_CRON,
     WEEKLY_REVIEW_CRON,
 )
@@ -54,7 +55,7 @@ def run_publish_job():
     from atg_engine.pipelines.publishing import run
     logger.info("Starting publishing job...")
     try:
-        result = run()
+        result = run(limit=PUBLISHING_LIMIT_PER_RUN)
         # Log summary only (not full result to avoid log spam)
         if result:
             result_lines = result.split('\n')

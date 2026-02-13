@@ -1,7 +1,9 @@
 """Publishing pipeline: fetch approved unpublished candidates, post via Twitter API, store tweet IDs. Threads posted as reply chains."""
 import logging
+from datetime import datetime, timedelta, timezone
 
 from atg_engine.config.env_validation import validate_env
+from atg_engine.config.settings import MIN_QUALITY_SCORE, MIN_TIME_BETWEEN_POSTS_MINUTES, PUBLISHING_LIMIT_PER_RUN
 from atg_engine.db.init_db import _add_missing_tweet_candidate_columns
 from atg_engine.db.session import SessionLocal
 from atg_engine.models import TweetCandidate, TweetPerformance
@@ -21,21 +23,50 @@ def _mark_candidate_skipped(c: TweetCandidate, reason: str) -> str:
 def run(**kwargs) -> str:
     validate_env(require_llm=False, require_twitter=True)
     if kwargs.get("dry_run") or kwargs.get("preview"):
-        return _preview_publish(kwargs.get("limit", 5))
+        return _preview_publish(kwargs.get("limit", PUBLISHING_LIMIT_PER_RUN))
     try:
         _add_missing_tweet_candidate_columns()
     except Exception as e:
         logger.warning("Schema self-heal skipped: %s", e)
     db = SessionLocal()
     try:
+        # Check minimum time since last post
+        last_post = (
+            db.query(TweetCandidate)
+            .filter(TweetCandidate.published == True, TweetCandidate.tweet_id.is_not(None))
+            .order_by(TweetCandidate.created_at.desc())
+            .first()
+        )
+        if last_post and last_post.created_at:
+            # Handle timezone-aware and timezone-naive datetimes
+            now = datetime.now(timezone.utc) if last_post.created_at.tzinfo else datetime.now()
+            last_post_time = last_post.created_at
+            if last_post_time.tzinfo and not now.tzinfo:
+                now = now.replace(tzinfo=timezone.utc)
+            elif not last_post_time.tzinfo and now.tzinfo:
+                last_post_time = last_post_time.replace(tzinfo=timezone.utc)
+            
+            time_since_last = now - last_post_time
+            min_interval = timedelta(minutes=MIN_TIME_BETWEEN_POSTS_MINUTES)
+            if time_since_last < min_interval:
+                remaining_minutes = (min_interval - time_since_last).total_seconds() / 60
+                return f"Too soon since last post. Wait {remaining_minutes:.1f} more minutes (minimum {MIN_TIME_BETWEEN_POSTS_MINUTES} minutes between posts)."
+        
+        # Filter by quality score if available
+        quality_filter = TweetCandidate.quality_score.is_(None) | (TweetCandidate.quality_score >= MIN_QUALITY_SCORE)
         candidates = (
             db.query(TweetCandidate)
-            .filter(TweetCandidate.approved == True, TweetCandidate.published == False)
-            .order_by(TweetCandidate.created_at, TweetCandidate.thread_id, TweetCandidate.thread_sequence)
+            .filter(TweetCandidate.approved == True, TweetCandidate.published == False, quality_filter)
+            .order_by(
+                TweetCandidate.quality_score.desc().nullslast(),
+                TweetCandidate.created_at,
+                TweetCandidate.thread_id,
+                TweetCandidate.thread_sequence
+            )
             .all()
         )
         if not candidates:
-            return "No unpublished approved candidates."
+            return "No unpublished approved candidates meeting quality threshold."
         # Content deduplication: avoid posting text we already posted (reduces 403 duplicate)
         rows = db.query(TweetCandidate.text).filter(
             TweetCandidate.published == True,
@@ -43,7 +74,7 @@ def run(**kwargs) -> str:
             TweetCandidate.text.is_not(None),
         ).all()
         published_texts: set[str] = {r[0] for r in rows if r[0]}
-        limit = kwargs.get("limit", 5)
+        limit = kwargs.get("limit", PUBLISHING_LIMIT_PER_RUN)
         results = []
         published_count = 0
         seen_thread_ids = set()
@@ -141,10 +172,17 @@ def _preview_publish(limit: int) -> str:
         logger.warning("Schema self-heal skipped: %s", e)
     db = SessionLocal()
     try:
+        # Filter by quality score if available
+        quality_filter = TweetCandidate.quality_score.is_(None) | (TweetCandidate.quality_score >= MIN_QUALITY_SCORE)
         candidates = (
             db.query(TweetCandidate)
-            .filter(TweetCandidate.approved == True, TweetCandidate.published == False)
-            .order_by(TweetCandidate.created_at, TweetCandidate.thread_id, TweetCandidate.thread_sequence)
+            .filter(TweetCandidate.approved == True, TweetCandidate.published == False, quality_filter)
+            .order_by(
+                TweetCandidate.quality_score.desc().nullslast(),
+                TweetCandidate.created_at,
+                TweetCandidate.thread_id,
+                TweetCandidate.thread_sequence
+            )
             .all()
         )
         if not candidates:

@@ -13,9 +13,11 @@ from atg_engine.agents import (
     create_writer,
     create_thread_builder,
     create_misinformation_gatekeeper,
+    create_quality_scorer,
 )
 from atg_engine.db.session import SessionLocal
 from atg_engine.config.env_validation import validate_env
+from atg_engine.config.settings import MIN_QUALITY_SCORE
 from atg_engine.models import TweetCandidate, VoiceGenome, StrategyState, Persona
 from atg_engine.services.bootstrap import ensure_bootstrap
 from atg_engine.utils.gatekeeper_parse import (
@@ -23,6 +25,7 @@ from atg_engine.utils.gatekeeper_parse import (
     _strip_tweet_prefix,
     parse_approved_content,
 )
+from atg_engine.utils.quality_parse import parse_quality_scores
 
 
 def _fetch_context():
@@ -57,7 +60,7 @@ def _fetch_context():
         db.close()
 
 
-def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
+def _save_approved_only(approved_list: list[dict], quality_scores: dict[str, float] | None = None, dry_run: bool = False):
     if dry_run:
         return
     db = SessionLocal()
@@ -73,6 +76,25 @@ def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
             if not text or len(text) > 280:
                 i += 1
                 continue
+            
+            # Check quality score threshold
+            quality_score = None
+            if quality_scores:
+                # Try exact match first
+                quality_score = quality_scores.get(text)
+                # Try normalized match
+                if quality_score is None:
+                    norm_text, _ = _normalize_text_and_thread_seq(text)
+                    quality_score = quality_scores.get(norm_text)
+                    if quality_score is None:
+                        quality_score = quality_scores.get(text.strip())
+            
+            # Filter by minimum quality score
+            if quality_score is not None and quality_score < MIN_QUALITY_SCORE:
+                logger.info(f"Skipping low-quality content (score {quality_score:.1f} < {MIN_QUALITY_SCORE}): {text[:50]}...")
+                i += 1
+                continue
+            
             seq = item.get("thread_sequence")
             if seq is not None and seq == 0:
                 thread_id = str(uuid.uuid4())
@@ -83,12 +105,22 @@ def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
                     t = approved_list[k].get("text", "").strip()
                     if not t or len(t) > 280:
                         continue
+                    # Get quality score for this thread tweet
+                    thread_quality = None
+                    if quality_scores:
+                        thread_quality = quality_scores.get(t)
+                        if thread_quality is None:
+                            norm_t, _ = _normalize_text_and_thread_seq(t)
+                            thread_quality = quality_scores.get(norm_t)
+                            if thread_quality is None:
+                                thread_quality = quality_scores.get(t.strip())
                     cand = TweetCandidate(
                         text=t,
                         tone_traits="[]",
                         topic=approved_list[k].get("topic", ""),
                         hook_type=approved_list[k].get("hook_type", ""),
                         risk_score=0.0,
+                        quality_score=thread_quality,
                         approved=True,
                         published=False,
                         thread_id=thread_id,
@@ -106,6 +138,7 @@ def _save_approved_only(approved_list: list[dict], dry_run: bool = False):
                 topic=item.get("topic", ""),
                 hook_type=item.get("hook_type", ""),
                 risk_score=0.0,
+                quality_score=quality_score,
                 approved=True,
                 published=False,
                 thread_id=None,
@@ -131,6 +164,7 @@ def run(**kwargs) -> str:
     writer_agent = create_writer()
     thread_agent = create_thread_builder()
     gatekeeper_agent = create_misinformation_gatekeeper()
+    quality_scorer_agent = create_quality_scorer()
 
     idea_task = Task(
         description=(
@@ -248,10 +282,41 @@ def run(**kwargs) -> str:
         agent=gatekeeper_agent,
         context=[writer_task, thread_task],
     )
+    
+    quality_task = Task(
+        description=(
+            "Score each approved tweet or thread piece from the gatekeeper for quality and engagement potential.\n\n"
+            "Inputs: All approved content from the gatekeeper task; persona (for alignment): "
+            + writer_context
+            + "\n\n"
+            "Evaluate each piece on:\n"
+            "- Clarity (0-10): Is the message clear and easy to understand?\n"
+            "- Hook Strength (0-10): Does it grab attention effectively?\n"
+            "- Engagement Potential (0-10): Likely to get likes, retweets, replies?\n"
+            "- Persona Alignment (0-10): Matches the defined persona voice?\n"
+            "- Overall Quality Score (0-10): Composite score\n\n"
+            "Output exactly one TWEET / QUALITY_SCORE block per piece of approved content."
+        ),
+        expected_output=(
+            "For each approved piece of content, output exactly:\n"
+            "TWEET: <quoted or exact text>\n"
+            "CLARITY: <0-10>\n"
+            "HOOK_STRENGTH: <0-10>\n"
+            "ENGAGEMENT_POTENTIAL: <0-10>\n"
+            "PERSONA_ALIGNMENT: <0-10>\n"
+            "QUALITY_SCORE: <0-10>\n\n"
+            "Or simplified format:\n"
+            "TWEET: <text>\n"
+            "QUALITY_SCORE: <0-10>\n\n"
+            "Only score content that was approved by the gatekeeper. Be strict—only truly high-quality content (score >= 7.0) should pass."
+        ),
+        agent=quality_scorer_agent,
+        context=[gatekeeper_task],
+    )
 
     crew = Crew(
-        agents=[idea_agent, hook_agent, writer_agent, thread_agent, gatekeeper_agent],
-        tasks=[idea_task, hook_task, writer_task, thread_task, gatekeeper_task],
+        agents=[idea_agent, hook_agent, writer_agent, thread_agent, gatekeeper_agent, quality_scorer_agent],
+        tasks=[idea_task, hook_task, writer_task, thread_task, gatekeeper_task, quality_task],
         process=Process.sequential,
         verbose=kwargs.get("verbose", True),
     )
@@ -268,5 +333,11 @@ def run(**kwargs) -> str:
             if thread_seq is not None:
                 item["thread_sequence"] = thread_seq
             approved_list.append(item)
-    _save_approved_only(approved_list, dry_run=kwargs.get("dry_run", False))
+    
+    # Parse quality scores from quality scorer output
+    quality_scores = parse_quality_scores(raw)
+    if quality_scores:
+        logger.info(f"Parsed {len(quality_scores)} quality scores from quality scorer output")
+    
+    _save_approved_only(approved_list, quality_scores=quality_scores, dry_run=kwargs.get("dry_run", False))
     return raw

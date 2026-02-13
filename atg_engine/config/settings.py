@@ -62,7 +62,12 @@ PERSONA_CONFIG_PATH = os.getenv("PERSONA_CONFIG_PATH", "").strip()
 
 # Scheduler (cron-like)
 DAILY_GENERATION_CRON = os.getenv("DAILY_GENERATION_CRON", "0 8 * * *")  # 08:00 daily
-PUBLISHING_INTERVAL_HOURS = int(os.getenv("PUBLISHING_INTERVAL_HOURS", "1"))
+PUBLISHING_INTERVAL_HOURS = int(os.getenv("PUBLISHING_INTERVAL_HOURS", "4"))  # Default: every 4 hours (was 1)
 PERFORMANCE_INTERVAL_HOURS = int(os.getenv("PERFORMANCE_INTERVAL_HOURS", "3"))
 WEEKLY_REVIEW_CRON = os.getenv("WEEKLY_REVIEW_CRON", "0 9 * * 1")  # Monday 09:00
 TRENDING_CONTENT_CRON = os.getenv("TRENDING_CONTENT_CRON", "0 */6 * * *")  # Every 6 hours
+
+# Publishing quality and limits
+PUBLISHING_LIMIT_PER_RUN = int(os.getenv("PUBLISHING_LIMIT_PER_RUN", "1"))  # Max posts per publishing run (default: 1)
+MIN_QUALITY_SCORE = float(os.getenv("MIN_QUALITY_SCORE", "7.0"))  # Minimum quality score (0-10) to publish
+MIN_TIME_BETWEEN_POSTS_MINUTES = int(os.getenv("MIN_TIME_BETWEEN_POSTS_MINUTES", "60"))  # Minimum minutes between posts

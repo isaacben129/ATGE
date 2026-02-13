@@ -30,7 +30,7 @@ def main():
 
     # run-publish
     p_publish = subparsers.add_parser("run-publish", help="Run publishing pipeline")
-    p_publish.add_argument("--limit", type=int, default=5, help="Max tweets to publish")
+    p_publish.add_argument("--limit", type=int, default=1, help="Max tweets to publish (default: 1)")
     p_publish.add_argument("--dry-run", action="store_true", help="List what would be published without posting")
     p_publish.add_argument("--preview", action="store_true", help="Same as --dry-run")
     p_publish.set_defaults(func=_run_publish)

@@ -13,6 +13,7 @@ from atg_engine.agents.cadence_manager import create_agent as create_cadence_man
 from atg_engine.agents.curation_agent import create_agent as create_curation_agent
 from atg_engine.agents.breakdown_agent import create_agent as create_breakdown_agent
 from atg_engine.agents.spin_generator import create_agent as create_spin_generator
+from atg_engine.agents.quality_scorer import create_agent as create_quality_scorer
 
 __all__ = [
     "create_wig_strategist",
@@ -29,4 +30,5 @@ __all__ = [
     "create_curation_agent",
     "create_breakdown_agent",
     "create_spin_generator",
+    "create_quality_scorer",
 ]
