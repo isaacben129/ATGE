@@ -2,10 +2,21 @@
 import re
 
 
+def _normalize_tweet_text(text: str) -> str:
+    """Normalize tweet text by stripping quotes and extra whitespace."""
+    text = text.strip()
+    # Remove surrounding quotes if present
+    if text.startswith('"') and text.endswith('"'):
+        text = text[1:-1].strip()
+    elif text.startswith("'") and text.endswith("'"):
+        text = text[1:-1].strip()
+    return text
+
+
 def parse_quality_scores(quality_output: str) -> dict[str, float]:
     """
     Parse quality scorer output for TWEET: / QUALITY_SCORE: blocks.
-    Returns dict mapping tweet text (normalized) -> quality score (0-10).
+    Returns dict mapping tweet text (normalized, without quotes) -> quality score (0-10).
     
     Expected format:
     TWEET: <text>
@@ -31,7 +42,8 @@ def parse_quality_scores(quality_output: str) -> dict[str, float]:
         if line_upper.startswith("TWEET:"):
             # Save previous entry if exists
             if current_text.strip() and current_score is not None:
-                scores[current_text.strip()] = current_score
+                normalized = _normalize_tweet_text(current_text)
+                scores[normalized] = current_score
             
             # Extract tweet text
             text = line[6:].strip()  # Remove "TWEET:" prefix
@@ -67,7 +79,8 @@ def parse_quality_scores(quality_output: str) -> dict[str, float]:
     
     # Save last entry
     if current_text.strip() and current_score is not None:
-        scores[current_text.strip()] = current_score
+        normalized = _normalize_tweet_text(current_text)
+        scores[normalized] = current_score
     
     # Fallback: try to extract scores from any line with "QUALITY_SCORE:" or "SCORE:"
     if not scores:
@@ -81,12 +94,15 @@ def parse_quality_scores(quality_output: str) -> dict[str, float]:
                         check_line = lines[check_idx]
                         if "TWEET:" in check_line.upper():
                             text = check_line[6:].strip()
-                            match = re.search(r"([\d.]+)", line)
+                            normalized = _normalize_tweet_text(text)
+                            match = re.search(r"QUALITY_SCORE:\s*([\d.]+)", line.upper())
+                            if not match:
+                                match = re.search(r"([\d.]+)", line)
                             if match:
                                 try:
                                     score = float(match.group(1))
                                     score = max(0.0, min(10.0, score))
-                                    scores[text] = score
+                                    scores[normalized] = score
                                 except ValueError:
                                     pass
                             break

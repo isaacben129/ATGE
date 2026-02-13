@@ -18,14 +18,15 @@ from atg_engine.agents import (
 from atg_engine.db.session import SessionLocal
 from atg_engine.config.env_validation import validate_env
 from atg_engine.config.settings import MIN_QUALITY_SCORE
-from atg_engine.models import TweetCandidate, VoiceGenome, StrategyState, Persona
+from atg_engine.models import TweetCandidate, VoiceGenome, StrategyState, Persona, TweetPerformance
 from atg_engine.services.bootstrap import ensure_bootstrap
+from atg_engine.services.trending_content_discovery import discover_by_categories, discover_trending_tweets
 from atg_engine.utils.gatekeeper_parse import (
     _normalize_text_and_thread_seq,
     _strip_tweet_prefix,
     parse_approved_content,
 )
-from atg_engine.utils.quality_parse import parse_quality_scores
+from atg_engine.utils.quality_parse import parse_quality_scores, _normalize_tweet_text
 
 
 def _fetch_context():
@@ -60,6 +61,87 @@ def _fetch_context():
         db.close()
 
 
+def _fetch_performance_insights(persona: Persona | None, limit: int = 5) -> str:
+    """Fetch insights from top-performing tweets to guide idea generation."""
+    if not persona:
+        return ""
+    db = SessionLocal()
+    try:
+        # Get top performing tweets with their candidate data
+        top_perfs = (
+            db.query(TweetPerformance)
+            .join(TweetCandidate, TweetPerformance.candidate_id == TweetCandidate.id)
+            .filter(
+                TweetPerformance.engagement_rate > 0,
+                TweetCandidate.text.is_not(None),
+            )
+            .order_by(TweetPerformance.engagement_rate.desc())
+            .limit(limit)
+            .all()
+        )
+        
+        if not top_perfs:
+            return ""
+        
+        insights = []
+        insights.append(f"Top {len(top_perfs)} performing tweets (use these patterns):")
+        for perf in top_perfs:
+            candidate = db.query(TweetCandidate).filter(TweetCandidate.id == perf.candidate_id).first()
+            if candidate:
+                topic = candidate.topic or "general"
+                hook_type = candidate.hook_type or "unknown"
+                text_preview = candidate.text[:100] + "..." if len(candidate.text) > 100 else candidate.text
+                insights.append(
+                    f"  Engagement: {perf.engagement_rate:.2f}% | Topic: {topic} | Hook: {hook_type} | Text: \"{text_preview}\""
+                )
+        return "\n".join(insights)
+    except Exception as e:
+        logger.warning(f"Failed to fetch performance insights: {e}")
+        return ""
+    finally:
+        db.close()
+
+
+def _fetch_trending_content(persona: Persona | None, max_results: int = 5) -> str:
+    """Fetch trending content relevant to persona categories."""
+    if not persona:
+        return ""
+    try:
+        viral_context = persona.get_viral_content_context()
+        content_categories = viral_context.get("content_categories") or {}
+        
+        if content_categories:
+            trending = discover_by_categories(
+                content_categories,
+                tweets_per_category=2,
+                min_likes=50,
+                min_retweets=5,
+            )
+        else:
+            trending = discover_trending_tweets(
+                max_results=max_results,
+                min_likes=50,
+                min_retweets=5,
+            )
+        
+        if not trending:
+            return ""
+        
+        trending_summary = []
+        trending_summary.append(f"Trending topics (consider these angles):")
+        for t in trending[:max_results]:
+            text_preview = t.get("text", "")[:80] + "..." if len(t.get("text", "")) > 80 else t.get("text", "")
+            engagement = t.get("likes", 0) + t.get("retweets", 0)
+            category = t.get("matched_category", "general")
+            trending_summary.append(
+                f"  Category: {category} | Engagement: {engagement} | \"{text_preview}\""
+            )
+        return "\n".join(trending_summary)
+    except Exception as e:
+        logger.warning(f"Failed to fetch trending content: {e}")
+        return ""
+
+
 def _save_approved_only(approved_list: list[dict], quality_scores: dict[str, float] | None = None, dry_run: bool = False):
     if dry_run:
         return
@@ -80,14 +162,23 @@ def _save_approved_only(approved_list: list[dict], quality_scores: dict[str, flo
             # Check quality score threshold
             quality_score = None
             if quality_scores:
+                # Normalize text for matching (strip quotes, normalize whitespace)
+                normalized_text = _normalize_tweet_text(text)
                 # Try exact match first
                 quality_score = quality_scores.get(text)
-                # Try normalized match
+                # Try normalized match (without quotes)
+                if quality_score is None:
+                    quality_score = quality_scores.get(normalized_text)
+                # Try thread-normalized match
                 if quality_score is None:
                     norm_text, _ = _normalize_text_and_thread_seq(text)
-                    quality_score = quality_scores.get(norm_text)
+                    if norm_text:
+                        quality_score = quality_scores.get(_normalize_tweet_text(norm_text))
+                # Try stripped match
+                if quality_score is None:
+                    quality_score = quality_scores.get(text.strip())
                     if quality_score is None:
-                        quality_score = quality_scores.get(text.strip())
+                        quality_score = quality_scores.get(normalized_text.strip())
             
             # Filter by minimum quality score
             if quality_score is not None and quality_score < MIN_QUALITY_SCORE:
@@ -108,12 +199,18 @@ def _save_approved_only(approved_list: list[dict], quality_scores: dict[str, flo
                     # Get quality score for this thread tweet
                     thread_quality = None
                     if quality_scores:
+                        normalized_t = _normalize_tweet_text(t)
                         thread_quality = quality_scores.get(t)
                         if thread_quality is None:
+                            thread_quality = quality_scores.get(normalized_t)
+                        if thread_quality is None:
                             norm_t, _ = _normalize_text_and_thread_seq(t)
-                            thread_quality = quality_scores.get(norm_t)
+                            if norm_t:
+                                thread_quality = quality_scores.get(_normalize_tweet_text(norm_t))
                             if thread_quality is None:
                                 thread_quality = quality_scores.get(t.strip())
+                                if thread_quality is None:
+                                    thread_quality = quality_scores.get(normalized_t.strip())
                     cand = TweetCandidate(
                         text=t,
                         tone_traits="[]",
@@ -158,6 +255,21 @@ def run(**kwargs) -> str:
     idea_context = persona.get_prompt_context("full") if persona else no_persona_msg
     writer_context = persona.get_prompt_context("writer") if persona else no_persona_msg
     n_ideas = kwargs.get("n_ideas", 3)
+    
+    # Fetch performance insights and trending content
+    performance_insights = _fetch_performance_insights(persona, limit=5)
+    trending_content = _fetch_trending_content(persona, max_results=5)
+    
+    # Build enhanced context strings
+    idea_context_enhanced = idea_context
+    if performance_insights:
+        idea_context_enhanced += "\n\n" + performance_insights
+    if trending_content:
+        idea_context_enhanced += "\n\n" + trending_content
+    
+    writer_context_enhanced = writer_context
+    if performance_insights:
+        writer_context_enhanced += "\n\n" + performance_insights
 
     idea_agent = create_idea_generator()
     hook_agent = create_hook_generator()
@@ -173,7 +285,7 @@ def run(**kwargs) -> str:
             + " tweet ideas (topic + angle). These ideas will be used for hooks and full tweets.\n\n"
             "Inputs:\n"
             "- Persona (stay in character): "
-            + idea_context
+            + idea_context_enhanced
             + "\n- Voice/strategy: genome="
             + genome_json
             + ", strategy="
@@ -181,10 +293,11 @@ def run(**kwargs) -> str:
             + "\n\n"
             "Steps:\n"
             "1. Use the persona and voice/strategy to stay on-brand.\n"
-            "2. Produce exactly "
+            "2. Consider the performance insights and trending content to inform your ideas—what's working and what's hot.\n"
+            "3. Produce exactly "
             + str(n_ideas)
             + " ideas; each idea must have one clear topic and one clear angle.\n"
-            "3. Output in the exact format specified in expected_output."
+            "4. Output in the exact format specified in expected_output."
         ),
         expected_output=(
             "A markdown list of exactly "
@@ -201,7 +314,7 @@ def run(**kwargs) -> str:
         description=(
             "For each idea from the previous task (use the exact topic and angle for each), generate one high-impact hook and tag its type.\n\n"
             "Inputs: The list of ideas from the previous task; persona (for voice): "
-            + writer_context
+            + writer_context_enhanced
             + "\n\n"
             "Steps:\n"
             "1. Take each idea in order (Idea 1, Idea 2, ...).\n"
@@ -221,15 +334,17 @@ def run(**kwargs) -> str:
         description=(
             "Using the ideas and hooks from the previous tasks, write 1–3 full tweet variants per idea. Every tweet must stay in character and be under 280 characters.\n\n"
             "Inputs: Ideas and hooks from the previous tasks; persona: "
-            + writer_context
+            + writer_context_enhanced
             + "; voice: "
             + genome_json
             + "\n\n"
             "Steps:\n"
             "1. Use the example tweets in her voice as style anchors. Every tweet should work on two levels—surface and psychological undercurrent.\n"
-            "2. For each idea, use its hook and the voice parameters to write 1–3 full tweet variants.\n"
-            "3. Stay in character for the persona. Vary sentence length: short and sharp for impact, longer for seduction. No emojis, no hashtags, no exclamation points unless ironic. Every tweet must be under 280 characters.\n"
-            "4. Output in the exact format specified in expected_output."
+            "2. Use the tweet formulas provided in the persona context—apply these structures when writing.\n"
+            "3. Consider performance insights—what patterns worked well in past high-performing tweets.\n"
+            "4. For each idea, use its hook and the voice parameters to write 1–3 full tweet variants.\n"
+            "5. Stay in character for the persona. Vary sentence length: short and sharp for impact, longer for seduction. No emojis, no hashtags, no exclamation points unless ironic. Every tweet must be under 280 characters.\n"
+            "6. Output in the exact format specified in expected_output."
         ),
         expected_output=(
             "For each idea, one block in this format:\n"
@@ -338,6 +453,23 @@ def run(**kwargs) -> str:
     quality_scores = parse_quality_scores(raw)
     if quality_scores:
         logger.info(f"Parsed {len(quality_scores)} quality scores from quality scorer output")
+    
+    # Extract tweets from quality scorer output (quality scorer only scores approved content)
+    # This is a fallback if gatekeeper output isn't parsed correctly
+    # Also add any tweets that have quality scores but weren't in approved_list
+    if quality_scores:
+        approved_texts = {_normalize_tweet_text(item.get("text", "")) for item in approved_list}
+        for tweet_text, score in quality_scores.items():
+            normalized_tweet = _normalize_tweet_text(tweet_text)
+            # Only add if not already in approved_list and meets quality threshold
+            if normalized_tweet not in approved_texts and score >= MIN_QUALITY_SCORE:
+                norm_text, thread_seq = _normalize_text_and_thread_seq(normalized_tweet)
+                item = {"text": (norm_text if norm_text else normalized_tweet), "approved": True, "topic": "", "hook_type": ""}
+                if thread_seq is not None:
+                    item["thread_sequence"] = thread_seq
+                approved_list.append(item)
+                approved_texts.add(normalized_tweet)
+                logger.info(f"Added tweet from quality scorer output: {normalized_tweet[:50]}... (score: {score:.1f})")
     
     _save_approved_only(approved_list, quality_scores=quality_scores, dry_run=kwargs.get("dry_run", False))
     return raw

@@ -1,0 +1,90 @@
+TWEET: "I've been in love with the ghosts of my exes, not the people they actually were - and I'm not alone in this haunting."
+CLARITY: 8
+HOOK_STRENGTH: 9
+ENGAGEMENT_POTENTIAL: 8
+PERSONA_ALIGNMENT: 9
+QUALITY_SCORE: 8.5
+
+TWEET: "We don't love people, we love the versions of them we've created in our minds, and that's a haunting."
+CLARITY: 9
+HOOK_STRENGTH: 8
+ENGAGEMENT_POTENTIAL: 8
+PERSONA_ALIGNMENT: 9
+QUALITY_SCORE: 8.5
+
+TWEET: "My exes were never as interesting as the ideas I had of them, and that's what I've been mourning."
+CLARITY: 8
+HOOK_STRENGTH: 7
+ENGAGEMENT_POTENTIAL: 7
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 7.5
+
+TWEET: "Nietzsche said, 'You must have chaos within you to give birth to a dancing star.' I say, you must have chaos within you to give birth to a decent Tinder bio."
+CLARITY: 9
+HOOK_STRENGTH: 9
+ENGAGEMENT_POTENTIAL: 9
+PERSONA_ALIGNMENT: 9
+QUALITY_SCORE: 9
+
+TWEET: "Chaos is the fertile ground for creativity, and also for a decent dating profile, it seems."
+CLARITY: 8
+HOOK_STRENGTH: 6
+ENGAGEMENT_POTENTIAL: 6
+PERSONA_ALIGNMENT: 7
+QUALITY_SCORE: 6.5
+
+TWEET: "A good Tinder bio requires a certain level of self-delusion, or as Nietzsche called it, chaos."
+CLARITY: 8
+HOOK_STRENGTH: 8
+ENGAGEMENT_POTENTIAL: 8
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 8
+
+TWEET: "There's a coffee shop near me that's only open for 2 hours a day. The line is always around the block. That's not a coffee shop, that's a lesson in how to make people want you."
+CLARITY: 9
+HOOK_STRENGTH: 9
+ENGAGEMENT_POTENTIAL: 9
+PERSONA_ALIGNMENT: 9
+QUALITY_SCORE: 9
+
+TWEET: "The coffee shop with limited hours teaches us that scarcity is the ultimate aphrodisiac, in love and in caffeine."
+CLARITY: 8
+HOOK_STRENGTH: 8
+ENGAGEMENT_POTENTIAL: 8
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 8
+
+TWEET: "Limited availability is a powerful tool, whether you're a coffee shop or a potential lover - it's all about creating a sense of urgency."
+CLARITY: 8
+HOOK_STRENGTH: 7
+ENGAGEMENT_POTENTIAL: 7
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 7.5
+
+TWEET: "We don't love people, we love the versions of them we've created in our minds. That's a haunting, not love."
+CLARITY: 9
+HOOK_STRENGTH: 8
+ENGAGEMENT_POTENTIAL: 8
+PERSONA_ALIGNMENT: 9
+QUALITY_SCORE: 8.5
+
+TWEET: "This disconnect reveals a truth: intimacy is a double-edged sword, fueling connection and crippling attachment."
+CLARITY: 8
+HOOK_STRENGTH: 7
+ENGAGEMENT_POTENTIAL: 7
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 7.5
+
+TWEET: "Recognizing this dichotomy is key. It frees us to explore desire and intimacy with honesty, not illusions."
+CLARITY: 8
+HOOK_STRENGTH: 6
+ENGAGEMENT_POTENTIAL: 6
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 7
+
+TWEET: "By embracing this complexity, we may just find a love that's more nuanced, more real – and less haunted."
+CLARITY: 8
+HOOK_STRENGTH: 7
+ENGAGEMENT_POTENTIAL: 7
+PERSONA_ALIGNMENT: 8
+QUALITY_SCORE: 7.5

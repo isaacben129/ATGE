@@ -60,7 +60,7 @@ class Persona(Base):
             )
         if kind == "writer":
             return self._build_writer_context(
-                basic, personality, voice_range, dos_donts, style_notes, data.get("cultural_references")
+                basic, personality, voice_range, dos_donts, style_notes, data.get("cultural_references"), data.get("tweet_formulas")
             )
         if kind == "curation":
             return self._build_curation_context(
@@ -157,8 +157,9 @@ class Persona(Base):
         dos_donts: dict,
         style_notes: str,
         cultural_refs: dict | None,
+        tweet_formulas: dict | None = None,
     ) -> str:
-        """Hooks, writer, thread, gatekeeper: voice_range examples, style_notes, do/dont, contradictions, guardrails."""
+        """Hooks, writer, thread, gatekeeper: voice_range examples, style_notes, do/dont, contradictions, guardrails, tweet formulas."""
         parts = []
 
         parts.append("Example tweets in her voice:")
@@ -197,6 +198,18 @@ class Persona(Base):
                 ref_parts.append("London: " + ", ".join(spots[:3]) if isinstance(spots[0], str) else "")
             if ref_parts:
                 parts.append("References: " + " | ".join(r for r in ref_parts if r))
+
+        if tweet_formulas and isinstance(tweet_formulas, dict):
+            parts.append("\nTweet formulas (use these structures when writing):")
+            for name, info in list(tweet_formulas.items())[:8]:
+                if isinstance(info, dict):
+                    structure = info.get("structure", "")
+                    example = info.get("example", "")
+                    if structure:
+                        formula_line = f"  {name.replace('_', ' ').title()}: {structure}"
+                        if example:
+                            formula_line += f" (e.g. \"{example[:80]}{'...' if len(example) > 80 else ''}\")"
+                        parts.append(formula_line)
 
         return "\n".join(parts) if parts else "No persona defined yet."
 
