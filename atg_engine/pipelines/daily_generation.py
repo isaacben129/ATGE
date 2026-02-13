@@ -457,19 +457,61 @@ def run(**kwargs) -> str:
     # Extract tweets from quality scorer output (quality scorer only scores approved content)
     # This is a fallback if gatekeeper output isn't parsed correctly
     # Also add any tweets that have quality scores but weren't in approved_list
+    # Parse raw output sequentially to preserve order
     if quality_scores:
         approved_texts = {_normalize_tweet_text(item.get("text", "")) for item in approved_list}
-        for tweet_text, score in quality_scores.items():
-            normalized_tweet = _normalize_tweet_text(tweet_text)
-            # Only add if not already in approved_list and meets quality threshold
-            if normalized_tweet not in approved_texts and score >= MIN_QUALITY_SCORE:
+        # Parse raw output sequentially to preserve order
+        lines = raw.strip().split("\n")
+        current_text = ""
+        current_score = None
+        score_dimensions = ["CLARITY:", "HOOK_STRENGTH:", "ENGAGEMENT_POTENTIAL:", "PERSONA_ALIGNMENT:"]
+        for line in lines:
+            line_upper = line.upper().strip()
+            # Skip empty lines
+            if not line_upper:
+                continue
+            # Check for TWEET: marker
+            if line_upper.startswith("TWEET:"):
+                # Save previous entry if exists
+                if current_text.strip() and current_score is not None:
+                    normalized_tweet = _normalize_tweet_text(current_text)
+                    if normalized_tweet not in approved_texts and current_score >= MIN_QUALITY_SCORE:
+                        norm_text, thread_seq = _normalize_text_and_thread_seq(normalized_tweet)
+                        item = {"text": (norm_text if norm_text else normalized_tweet), "approved": True, "topic": "", "hook_type": ""}
+                        if thread_seq is not None:
+                            item["thread_sequence"] = thread_seq
+                        approved_list.append(item)
+                        approved_texts.add(normalized_tweet)
+                        logger.info(f"Added tweet from quality scorer output: {normalized_tweet[:50]}... (score: {current_score:.1f})")
+                # Start new tweet
+                current_text = line[6:].strip()  # Remove "TWEET:" prefix
+                current_score = None
+            # Check for QUALITY_SCORE: marker
+            elif "QUALITY_SCORE:" in line_upper:
+                match = re.search(r"QUALITY_SCORE:\s*([\d.]+)", line_upper)
+                if match:
+                    try:
+                        current_score = float(match.group(1))
+                        current_score = max(0.0, min(10.0, current_score))
+                    except ValueError:
+                        pass
+            # Skip score dimension lines (CLARITY, HOOK_STRENGTH, etc.)
+            elif any(dim in line_upper for dim in score_dimensions):
+                continue
+            # Accumulate multi-line tweet text (only if we have a current tweet and it's not a marker line)
+            elif current_text and not any(marker in line_upper for marker in ["TWEET:", "QUALITY_SCORE:", "APPROVED:", "REASON:"]):
+                current_text += "\n" + line.strip()
+        # Handle last entry
+        if current_text.strip() and current_score is not None:
+            normalized_tweet = _normalize_tweet_text(current_text)
+            if normalized_tweet not in approved_texts and current_score >= MIN_QUALITY_SCORE:
                 norm_text, thread_seq = _normalize_text_and_thread_seq(normalized_tweet)
                 item = {"text": (norm_text if norm_text else normalized_tweet), "approved": True, "topic": "", "hook_type": ""}
                 if thread_seq is not None:
                     item["thread_sequence"] = thread_seq
                 approved_list.append(item)
                 approved_texts.add(normalized_tweet)
-                logger.info(f"Added tweet from quality scorer output: {normalized_tweet[:50]}... (score: {score:.1f})")
+                logger.info(f"Added tweet from quality scorer output: {normalized_tweet[:50]}... (score: {current_score:.1f})")
     
     _save_approved_only(approved_list, quality_scores=quality_scores, dry_run=kwargs.get("dry_run", False))
     return raw

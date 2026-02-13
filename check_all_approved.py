@@ -3,13 +3,19 @@ from atg_engine.models import TweetCandidate
 
 db = SessionLocal()
 try:
+    # Query newest first by id (highest id = last generated)
+    # We want to show newest tweets first, but in generation order within the batch
+    # So we query desc, then reverse to get generation order for the newest batch
     tweets = (
         db.query(TweetCandidate)
         .filter(TweetCandidate.approved == True)
-        .order_by(TweetCandidate.created_at.desc())
+        .order_by(TweetCandidate.id.desc())
         .limit(20)
         .all()
     )
+    # Reverse to show in generation order (first generated in batch appears first)
+    # This matches the terminal output order for the most recent generation
+    tweets = list(reversed(tweets))
     
     print(f"\nFound {len(tweets)} approved tweets (all time):\n")
     for i, t in enumerate(tweets, 1):
