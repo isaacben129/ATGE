@@ -42,6 +42,8 @@ TWITTER_READ_FALLBACK = os.getenv("TWITTER_READ_FALLBACK", "official").strip().l
 # Search provider: same idea. Default to rapidapi (free), fallback to official (paid).
 TWITTER_SEARCH_PRIMARY = os.getenv("TWITTER_SEARCH_PRIMARY", "rapidapi").strip().lower() or "rapidapi"
 TWITTER_SEARCH_FALLBACK = os.getenv("TWITTER_SEARCH_FALLBACK", "official").strip().lower() or "official"
+# Credit protection: if True, blocks fallback to paid official Twitter API (prevents credit consumption)
+TWITTER_DISABLE_PAID_FALLBACK = os.getenv("TWITTER_DISABLE_PAID_FALLBACK", "false").strip().lower() in ("true", "1", "yes")
 # Batch size for search requests (how many tweets to fetch before filtering by engagement)
 SEARCH_REQUEST_BATCH_SIZE = int(os.getenv("SEARCH_REQUEST_BATCH_SIZE", "100") or "100")
 # Optional: cap tweet IDs per ingestion run to stay under free tier (e.g. 30 * 30 days = 900/month)

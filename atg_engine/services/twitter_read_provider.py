@@ -39,12 +39,25 @@ class ChainedTwitterReadProvider:
     def __init__(self, primary: "TwitterReadProvider", fallback: "TwitterReadProvider") -> None:
         self._primary = primary
         self._fallback = fallback
+        self._fallback_is_official = isinstance(fallback, OfficialTwitterReadProvider)
 
     def get_tweet_metrics_batch(self, tweet_ids: list[str]) -> dict[str, dict[str, Any]]:
         try:
             return self._primary.get_tweet_metrics_batch(tweet_ids)
         except Exception as e:
             if _is_retryable_read_error(e):
+                # Check if fallback to paid API is disabled
+                from atg_engine.config.settings import TWITTER_DISABLE_PAID_FALLBACK
+                if TWITTER_DISABLE_PAID_FALLBACK and self._fallback_is_official:
+                    logger.error(
+                        "Read primary failed (%s), but fallback to PAID official Twitter API is disabled. "
+                        "Set TWITTER_DISABLE_PAID_FALLBACK=false in .env to allow fallback, or fix the primary provider. "
+                        "Error: %s", type(e).__name__, e
+                    )
+                    raise RuntimeError(
+                        f"Primary read provider failed ({type(e).__name__}) and fallback to paid API is disabled. "
+                        f"Original error: {e}"
+                    ) from e
                 logger.warning("Read primary failed (%s), using fallback: %s", type(e).__name__, e)
                 return self._fallback.get_tweet_metrics_batch(tweet_ids)
             raise
@@ -54,6 +67,18 @@ class ChainedTwitterReadProvider:
             return self._primary.get_me_follower_count()
         except Exception as e:
             if _is_retryable_read_error(e):
+                # Check if fallback to paid API is disabled
+                from atg_engine.config.settings import TWITTER_DISABLE_PAID_FALLBACK
+                if TWITTER_DISABLE_PAID_FALLBACK and self._fallback_is_official:
+                    logger.error(
+                        "Read primary failed (%s), but fallback to PAID official Twitter API is disabled. "
+                        "Set TWITTER_DISABLE_PAID_FALLBACK=false in .env to allow fallback, or fix the primary provider. "
+                        "Error: %s", type(e).__name__, e
+                    )
+                    raise RuntimeError(
+                        f"Primary read provider failed ({type(e).__name__}) and fallback to paid API is disabled. "
+                        f"Original error: {e}"
+                    ) from e
                 logger.warning("Read primary failed (%s), using fallback: %s", type(e).__name__, e)
                 return self._fallback.get_me_follower_count()
             raise

@@ -163,6 +163,7 @@ class ChainedTwitterSearchProvider:
     def __init__(self, primary: TwitterSearchProvider, fallback: TwitterSearchProvider) -> None:
         self._primary = primary
         self._fallback = fallback
+        self._fallback_is_official = isinstance(fallback, OfficialTwitterSearchProvider)
 
     def search_recent_tweets(
         self,
@@ -180,6 +181,18 @@ class ChainedTwitterSearchProvider:
             )
         except Exception as e:
             if _is_retryable_search_error(e):
+                # Check if fallback to paid API is disabled
+                from atg_engine.config.settings import TWITTER_DISABLE_PAID_FALLBACK
+                if TWITTER_DISABLE_PAID_FALLBACK and self._fallback_is_official:
+                    logger.error(
+                        "Search primary failed (%s), but fallback to PAID official Twitter API is disabled. "
+                        "Set TWITTER_DISABLE_PAID_FALLBACK=false in .env to allow fallback, or fix the primary provider. "
+                        "Error: %s", type(e).__name__, e
+                    )
+                    raise RuntimeError(
+                        f"Primary search provider failed ({type(e).__name__}) and fallback to paid API is disabled. "
+                        f"Original error: {e}"
+                    ) from e
                 logger.warning("Search primary failed (%s), using fallback: %s", type(e).__name__, e)
                 return self._fallback.search_recent_tweets(
                     query=query,
