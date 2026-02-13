@@ -78,9 +78,9 @@ def run(**kwargs) -> str:
     try:
         trending = discover_trending_tweets(
             query=kwargs.get("query", ""),
-            max_results=kwargs.get("max_results", 10),
-            min_likes=kwargs.get("min_likes", 100),
-            min_retweets=kwargs.get("min_retweets", 10),
+            max_results=kwargs.get("max_results", 50),
+            min_likes=kwargs.get("min_likes", 50),
+            min_retweets=kwargs.get("min_retweets", 5),
         )
     except Exception as e:
         logger.warning("Trending discovery failed: %s", e, exc_info=True)

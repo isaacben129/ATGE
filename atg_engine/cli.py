@@ -47,9 +47,9 @@ def main():
     # run-trending
     p_trending = subparsers.add_parser("run-trending", help="Run trending content discovery and curation pipeline")
     p_trending.add_argument("--query", type=str, default="", help="Search query (empty for recent non-RT tweets)")
-    p_trending.add_argument("--max-results", type=int, default=10, help="Max trending tweets to analyze")
-    p_trending.add_argument("--min-likes", type=int, default=100, help="Minimum likes threshold")
-    p_trending.add_argument("--min-retweets", type=int, default=10, help="Minimum retweets threshold")
+    p_trending.add_argument("--max-results", type=int, default=50, help="Max trending tweets to analyze")
+    p_trending.add_argument("--min-likes", type=int, default=50, help="Minimum likes threshold")
+    p_trending.add_argument("--min-retweets", type=int, default=5, help="Minimum retweets threshold")
     p_trending.add_argument("--no-verbose", action="store_true", help="Disable verbose output")
     p_trending.add_argument("--dry-run", action="store_true", help="Run pipeline but do not save to DB")
     p_trending.set_defaults(func=_run_trending)
@@ -145,9 +145,9 @@ def _invoke_func(args, func):
     elif args.command == "run-trending":
         func(
             query=getattr(args, "query", ""),
-            max_results=getattr(args, "max_results", 10),
-            min_likes=getattr(args, "min_likes", 100),
-            min_retweets=getattr(args, "min_retweets", 10),
+            max_results=getattr(args, "max_results", 50),
+            min_likes=getattr(args, "min_likes", 50),
+            min_retweets=getattr(args, "min_retweets", 5),
             verbose=not getattr(args, "no_verbose", False),
             dry_run=getattr(args, "dry_run", False),
         )

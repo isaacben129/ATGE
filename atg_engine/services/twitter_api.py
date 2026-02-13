@@ -6,6 +6,23 @@ from typing import Any
 MAX_RETRIES = 3
 INITIAL_BACKOFF = 2.0
 
+
+class TwitterPermanentError(Exception):
+    """Twitter API returned a non-retryable error (e.g. 403, 400). Used so callers can mark candidate and stop retrying."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class DuplicateContentError(TwitterPermanentError):
+    """Twitter API returned 403 duplicate content. Caller should mark candidate as skipped and not retry."""
+
+
+def _is_duplicate_content_error(error_msg: str) -> bool:
+    return "duplicate content" in (error_msg or "").lower()
+
+
 from atg_engine.config.settings import (
     TWITTER_ACCESS_SECRET,
     TWITTER_ACCESS_TOKEN,
@@ -90,6 +107,10 @@ def post_tweet(text: str, reply_to_tweet_id: str | None = None, quote_tweet_id: 
             else:
                 logger.error("Failed to post tweet after %s attempts. Status: %s, Error: %s", 
                            attempt + 1, last_status, error_msg)
+                if last_status in (403, 400) and _is_duplicate_content_error(error_msg):
+                    raise DuplicateContentError(error_msg, last_status)
+                if last_status in (403, 400):
+                    raise TwitterPermanentError(error_msg, last_status)
                 break
     return None
 

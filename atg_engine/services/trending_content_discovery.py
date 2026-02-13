@@ -6,9 +6,9 @@ from atg_engine.services.twitter_search_provider import VALID_DEFAULT_QUERY, get
 
 def discover_trending_tweets(
     query: str = "",
-    max_results: int = 10,
-    min_likes: int = 100,
-    min_retweets: int = 10,
+    max_results: int = 50,
+    min_likes: int = 50,
+    min_retweets: int = 5,
 ) -> list[dict[str, Any]]:
     """
     Discover trending tweets using the configured search provider (official or free-first chain).
@@ -51,8 +51,8 @@ def _topic_to_search_terms(topic: str, max_terms: int = 3) -> list[str]:
 def discover_by_categories(
     categories: dict[str, list[str]],
     tweets_per_category: int = 5,
-    min_likes: int = 100,
-    min_retweets: int = 10,
+    min_likes: int = 50,
+    min_retweets: int = 5,
     category_filter: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """

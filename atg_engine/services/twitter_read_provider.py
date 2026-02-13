@@ -14,7 +14,7 @@ def _is_retryable_read_error(exc: BaseException) -> bool:
     """True if we should try the fallback provider (rate limit, not implemented, etc.)."""
     if isinstance(exc, NotImplementedError):
         return True
-    if isinstance(exc, RuntimeError) and "Xpoz" in str(exc):
+    if isinstance(exc, RuntimeError) and ("Xpoz" in str(exc) or "RapidAPI" in str(exc)):
         return True
     resp = getattr(exc, "response", None)
     status = getattr(resp, "status_code", None) if resp is not None else getattr(exc, "status_code", None)
@@ -71,6 +71,33 @@ class OfficialTwitterReadProvider:
         return twitter_api.get_me_follower_count()
 
 
+class RapidAPIReadProvider:
+    """
+    RapidAPI Twitter API (free tier): tweet metrics and optional follower count.
+    Requires RAPIDAPI_KEY. Set RAPIDAPI_TWITTER_USERNAME for get_me_follower_count; else returns None.
+    Optimized with caching to minimize API calls.
+    """
+    def get_tweet_metrics_batch(self, tweet_ids: list[str]) -> dict[str, dict[str, Any]]:
+        from atg_engine.config.settings import RAPIDAPI_KEY
+        from atg_engine.services import rapidapi_client
+        if not RAPIDAPI_KEY:
+            raise NotImplementedError(
+                "RapidAPI read provider requires RAPIDAPI_KEY in .env when TWITTER_READ_PRIMARY=rapidapi."
+            )
+        return rapidapi_client.get_tweet_metrics_batch(tweet_ids)
+
+    def get_me_follower_count(self) -> int | None:
+        from atg_engine.config.settings import RAPIDAPI_KEY, RAPIDAPI_TWITTER_USERNAME
+        from atg_engine.services import rapidapi_client
+        if not RAPIDAPI_KEY:
+            raise NotImplementedError(
+                "RapidAPI read provider requires RAPIDAPI_KEY in .env when TWITTER_READ_PRIMARY=rapidapi."
+            )
+        if not RAPIDAPI_TWITTER_USERNAME:
+            return None
+        return rapidapi_client.get_user_follower_count(RAPIDAPI_TWITTER_USERNAME)
+
+
 class XpozReadProvider:
     """
     Xpoz MCP (free tier): tweet metrics and optional follower count.
@@ -98,8 +125,10 @@ class XpozReadProvider:
 
 
 def _read_provider_by_name(name: str) -> TwitterReadProvider:
-    """Return a read provider instance by name (official, xpoz)."""
+    """Return a read provider instance by name (official, rapidapi, xpoz)."""
     n = (name or "official").strip().lower()
+    if n == "rapidapi":
+        return RapidAPIReadProvider()
     if n == "xpoz":
         return XpozReadProvider()
     return OfficialTwitterReadProvider()

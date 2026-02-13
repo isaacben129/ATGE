@@ -18,6 +18,23 @@ INITIAL_BACKOFF = 2.0
 DEFAULT_SEARCH_TERM = "the"
 VALID_DEFAULT_QUERY = f"{DEFAULT_SEARCH_TERM} -is:retweet lang:en"
 
+# Request this many tweets from the API, then filter by engagement and return up to max_results (prime content).
+# Can be overridden via SEARCH_REQUEST_BATCH_SIZE env var (default 100).
+def _get_batch_size() -> int:
+    from atg_engine.config.settings import SEARCH_REQUEST_BATCH_SIZE
+    return SEARCH_REQUEST_BATCH_SIZE if SEARCH_REQUEST_BATCH_SIZE else 100
+
+
+def _normalize_query(query: str) -> str:
+    """Ensure query always includes -is:retweet and lang:en for English-only, no-RT results."""
+    q = (query or "").strip() or VALID_DEFAULT_QUERY
+    q_lower = q.lower()
+    if "lang:en" not in q_lower:
+        q = f"{q} -is:retweet lang:en"
+    elif "-is:retweet" not in q_lower:
+        q = f"{q} -is:retweet"
+    return q
+
 
 def _is_retryable_search_error(exc: BaseException) -> bool:
     """True if we should try the fallback provider (rate limit, NotImplemented, connection errors, etc.)."""
@@ -52,7 +69,7 @@ class TwitterSearchProvider(Protocol):
 
 
 class OfficialTwitterSearchProvider:
-    """Uses official X API v2 search_recent_tweets (tweepy bearer client)."""
+    """Uses official X API v2 search_recent_tweets (tweepy bearer client). WARNING: Uses paid API credits."""
 
     def search_recent_tweets(
         self,
@@ -61,18 +78,22 @@ class OfficialTwitterSearchProvider:
         min_likes: int = 100,
         min_retweets: int = 10,
     ) -> list[dict[str, Any]]:
+        logger.warning(
+            "Using PAID official Twitter API for search (costs credits). "
+            "Set TWITTER_SEARCH_PRIMARY=xpoz in .env to use free Xpoz instead."
+        )
         client = _get_tweepy_client()
         if client is None:
             return []
 
-        search_query = query.strip() or VALID_DEFAULT_QUERY
-        cap = min(max(max_results, 10), 100)
+        search_query = _normalize_query(query.strip() or VALID_DEFAULT_QUERY)
+        request_size = _get_batch_size()
 
         for attempt in range(MAX_RETRIES):
             try:
                 response = client.search_recent_tweets(
                     query=search_query,
-                    max_results=cap,
+                    max_results=request_size,
                     tweet_fields=["public_metrics", "created_at", "author_id"],
                     expansions=["author_id"],
                     user_fields=["username"],
@@ -169,6 +190,155 @@ class ChainedTwitterSearchProvider:
             raise
 
 
+class RapidAPISearchProvider:
+    """
+    RapidAPI Twitter API (free tier): tweet search via RapidAPI.
+    Requires RAPIDAPI_KEY. Optimized with caching to minimize API calls.
+    """
+    def search_recent_tweets(
+        self,
+        query: str = "",
+        max_results: int = 10,
+        min_likes: int = 100,
+        min_retweets: int = 10,
+    ) -> list[dict[str, Any]]:
+        from atg_engine.config.settings import RAPIDAPI_KEY
+        from atg_engine.services import rapidapi_client
+        if not RAPIDAPI_KEY:
+            raise NotImplementedError(
+                "RapidAPI search provider requires RAPIDAPI_KEY in .env when TWITTER_SEARCH_PRIMARY=rapidapi."
+            )
+        # RapidAPI uses natural language keywords, not Twitter query syntax
+        # Extract keywords from query (remove operators like lang:en, -is:retweet)
+        keywords = _extract_keywords_from_query(query.strip() or DEFAULT_SEARCH_TERM)
+        if not keywords:
+            keywords = DEFAULT_SEARCH_TERM
+        
+        # Request more than max_results so we can filter by engagement
+        request_size = min(_get_batch_size(), 100)  # Reasonable limit
+        
+        try:
+            tweets, _ = rapidapi_client.search_tweets_by_keywords(
+                keywords, 
+                limit=request_size, 
+                search_type="Top"
+            )
+        except Exception as e:
+            logger.warning("RapidAPI search failed: %s", e)
+            raise RuntimeError(f"RapidAPI search failed: {e}") from e
+        
+        if not tweets:
+            logger.debug("RapidAPI search returned no tweets for keywords: %s", keywords)
+            return []
+        
+        trending: list[dict[str, Any]] = []
+        for tweet in tweets:
+            likes = int(tweet.get("likes", 0) or 0)
+            retweets = int(tweet.get("retweets", 0) or 0)
+            
+            if likes < min_likes or retweets < min_retweets:
+                continue
+            
+            tweet_id = tweet.get("tweet_id")
+            if not tweet_id:
+                continue
+            
+            trending.append({
+                "tweet_id": str(tweet_id),
+                "text": tweet.get("text", ""),
+                "author_username": tweet.get("author_username", "unknown"),
+                "likes": likes,
+                "retweets": retweets,
+                "created_at": tweet.get("created_at"),
+            })
+        
+        trending.sort(key=lambda x: x["likes"] + x["retweets"], reverse=True)
+        return trending[:max_results]
+
+
+class XpozSearchProvider:
+    """
+    Xpoz MCP (free tier): tweet search via getTwitterPostsByKeywords.
+    Requires XPOZ_API_KEY. Free tier: 100,000 results/month.
+    """
+    def search_recent_tweets(
+        self,
+        query: str = "",
+        max_results: int = 10,
+        min_likes: int = 100,
+        min_retweets: int = 10,
+    ) -> list[dict[str, Any]]:
+        from atg_engine.config.settings import XPOZ_API_KEY
+        from atg_engine.services import xpoz_client
+        if not XPOZ_API_KEY:
+            raise NotImplementedError(
+                "Xpoz search provider requires XPOZ_API_KEY in .env when TWITTER_SEARCH_PRIMARY=xpoz."
+            )
+        # Xpoz uses natural language keywords, not Twitter query syntax
+        # Extract keywords from query (remove operators like lang:en, -is:retweet)
+        keywords = _extract_keywords_from_query(query.strip() or DEFAULT_SEARCH_TERM)
+        if not keywords:
+            keywords = DEFAULT_SEARCH_TERM
+        
+        # Request more than max_results so we can filter by engagement
+        request_size = min(_get_batch_size(), 100)  # Xpoz max is 100 per page
+        
+        try:
+            posts = xpoz_client.search_tweets_by_keywords(keywords, limit=request_size)
+        except Exception as e:
+            logger.warning("Xpoz search failed: %s", e)
+            raise RuntimeError(f"Xpoz search failed: {e}") from e
+        
+        if not posts:
+            logger.debug("Xpoz search returned no posts for keywords: %s", keywords)
+            return []
+        
+        trending: list[dict[str, Any]] = []
+        for post in posts:
+            likes = int(post.get("likeCount", post.get("like_count", 0)) or 0)
+            retweets = int(post.get("retweetCount", post.get("retweet_count", 0)) or 0)
+            
+            if likes < min_likes or retweets < min_retweets:
+                continue
+            
+            tweet_id = str(post.get("id", ""))
+            if not tweet_id:
+                continue
+            
+            trending.append({
+                "tweet_id": tweet_id,
+                "text": post.get("text", post.get("content", "")),
+                "author_username": post.get("authorUsername", post.get("author_username", "unknown")),
+                "likes": likes,
+                "retweets": retweets,
+                "created_at": post.get("createdAt", post.get("created_at")),
+            })
+        
+        trending.sort(key=lambda x: x["likes"] + x["retweets"], reverse=True)
+        return trending[:max_results]
+
+
+def _extract_keywords_from_query(query: str) -> str:
+    """Extract searchable keywords from Twitter query syntax (remove operators like lang:en, -is:retweet)."""
+    # Remove common operators
+    q = query
+    # Remove lang:en, lang:es, etc.
+    import re
+    q = re.sub(r'\s+lang:\w+', '', q, flags=re.IGNORECASE)
+    # Remove -is:retweet, is:retweet
+    q = re.sub(r'\s*-?is:retweet', '', q, flags=re.IGNORECASE)
+    # Remove quotes around phrases but keep the phrase
+    q = q.replace('"', '')
+    # Remove parentheses but keep content
+    q = re.sub(r'[()]', '', q)
+    # Remove OR/AND operators, keep terms
+    q = re.sub(r'\s+OR\s+', ' ', q, flags=re.IGNORECASE)
+    q = re.sub(r'\s+AND\s+', ' ', q, flags=re.IGNORECASE)
+    # Clean up whitespace
+    q = ' '.join(q.split())
+    return q.strip() or DEFAULT_SEARCH_TERM
+
+
 class FreeTwitterSearchProvider:
     """
     Stub for a free search source (e.g. Nitter RSS or third-party free API).
@@ -184,13 +354,17 @@ class FreeTwitterSearchProvider:
     ) -> list[dict[str, Any]]:
         raise NotImplementedError(
             "Free search provider not implemented. "
-            "Set TWITTER_SEARCH_PRIMARY=official until a free search source is added."
+            "Set TWITTER_SEARCH_PRIMARY=xpoz or official until a free search source is added."
         )
 
 
 def _search_provider_by_name(name: str) -> TwitterSearchProvider:
-    """Return a search provider instance by name (official, free stub)."""
+    """Return a search provider instance by name (official, rapidapi, xpoz, free stub)."""
     n = (name or "official").strip().lower()
+    if n == "rapidapi":
+        return RapidAPISearchProvider()
+    if n == "xpoz":
+        return XpozSearchProvider()
     if n == "free":
         return FreeTwitterSearchProvider()
     return OfficialTwitterSearchProvider()

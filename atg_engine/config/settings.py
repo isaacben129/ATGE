@@ -34,16 +34,24 @@ TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "").strip() or os.getenv("T
 TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN", "")
 TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
 
-# Read provider: "official" (batched API) or "xpoz" (when implemented)
+# Read provider: "official" (batched API) or "rapidapi" (free via RapidAPI)
 TWITTER_READ_PROVIDER = os.getenv("TWITTER_READ_PROVIDER", "official")
-# Free-first: primary tried first, fallback used on failure/rate limit. Default both "official".
-TWITTER_READ_PRIMARY = os.getenv("TWITTER_READ_PRIMARY", "official").strip().lower() or "official"
+# Free-first: primary tried first, fallback used on failure/rate limit. Default to rapidapi (free).
+TWITTER_READ_PRIMARY = os.getenv("TWITTER_READ_PRIMARY", "rapidapi").strip().lower() or "rapidapi"
 TWITTER_READ_FALLBACK = os.getenv("TWITTER_READ_FALLBACK", "official").strip().lower() or "official"
-# Search provider: same idea. Use "official" until a free search source is added.
-TWITTER_SEARCH_PRIMARY = os.getenv("TWITTER_SEARCH_PRIMARY", "official").strip().lower() or "official"
+# Search provider: same idea. Default to rapidapi (free), fallback to official (paid).
+TWITTER_SEARCH_PRIMARY = os.getenv("TWITTER_SEARCH_PRIMARY", "rapidapi").strip().lower() or "rapidapi"
 TWITTER_SEARCH_FALLBACK = os.getenv("TWITTER_SEARCH_FALLBACK", "official").strip().lower() or "official"
+# Batch size for search requests (how many tweets to fetch before filtering by engagement)
+SEARCH_REQUEST_BATCH_SIZE = int(os.getenv("SEARCH_REQUEST_BATCH_SIZE", "100") or "100")
 # Optional: cap tweet IDs per ingestion run to stay under free tier (e.g. 30 * 30 days = 900/month)
 PERFORMANCE_INGESTION_MAX_TWEETS = int(os.getenv("PERFORMANCE_INGESTION_MAX_TWEETS", "50"))
+
+# RapidAPI (free Twitter API via RapidAPI): API key from rapidapi.com
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "").strip()
+RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST", "twitter-api45.p.rapidapi.com").strip()
+RAPIDAPI_CACHE_TTL_SEC = int(os.getenv("RAPIDAPI_CACHE_TTL_SEC", "300") or "300")
+RAPIDAPI_TWITTER_USERNAME = os.getenv("RAPIDAPI_TWITTER_USERNAME", "").strip()
 
 # Xpoz (free read provider): API key from xpoz.ai/settings; optional username for get_me_follower_count
 XPOZ_API_KEY = os.getenv("XPOZ_API_KEY", "").strip()
