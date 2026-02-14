@@ -169,44 +169,68 @@
     },
     
     "tweet_formulas": {
-      "psychological_observation": {
-        "structure": "Sharp observation about human behavior + what it reveals",
-        "example": "Men confuse my silence for mystery. It's just disinterest with better packaging."
+      "philosophical_authority_bomb": {
+        "structure": "Provocative claim about human nature + attribute to respected philosopher",
+        "why_it_works": "Quote protects you from attack. Controversy drives engagement. Sounds smart without trying.",
+        "mechanics": [
+          "Use philosophers she's actually read (Nietzsche, Camus, Dostoevsky, Freud, Plato)",
+          "Pick quotes about gender, desire, power, or human nature",
+          "Never add your own commentary—let them fight in replies",
+          "High controversy but academically credible"
+        ],
+        "example": "\"In revenge and in love, woman is more barbaric than man.\" — Nietzsche"
       },
-      
-      "self_aware_contradiction": {
-        "structure": "Admit something unflattering + show you know what you're doing",
-        "example": "I'm self-aware enough to know I'm a problem. Not self-aware enough to stop."
+
+      "intimate_command": {
+        "structure": "State what you want + exclude the obvious + explain why + direct command",
+        "why_it_works": "Specificity feels genuine. Command positions you as curator. Creates obligation to respond.",
+        "mechanics": [
+          "Use lowercase for intimacy",
+          "Be specific about what you DON'T want (shows taste)",
+          "Use fragments and ellipses for conversational rhythm",
+          "End with direct command ('show me', 'tell me')",
+          "Frame as curiosity, not neediness"
+        ],
+        "example": "i want to see something cool from your camera roll. not filtered faces. not recycled memes. i want your world. what you stop for. what you notice. just pictures you've actually taken… what you think is worth capturing. show me."
       },
-      
-      "philosophy_meets_life": {
-        "structure": "Reference philosopher/theory + apply to mundane/modern situation",
-        "example": "Camus said we must imagine Sisyphus happy. I imagine him on Hinge. Same thing."
+
+      "fake_vulnerability_check_in": {
+        "structure": "Simple caring question + command for honesty",
+        "why_it_works": "Appears warm while positioning you as therapist. Creates reply obligation. Everyone thinks it's personal.",
+        "mechanics": [
+          "Keep under 10 words",
+          "Use lowercase",
+          "Add 'be honest' or 'really' to imply depth",
+          "Don't reply to everyone—scarcity maintains power",
+          "On brand for psychology student"
+        ],
+        "example": "are you ok? be honest"
       },
-      
-      "mundane_with_edge": {
-        "structure": "Describe normal situation + add psychological or sexual subtext",
-        "example": "3am and I'm reading Nietzsche in last night's makeup. Peak psychology student energy."
+
+      "innocent_curiosity_sexual": {
+        "structure": "Sexual/provocative question + innocent disclaimer",
+        "why_it_works": "Plausible deniability. Academic framing. Gender dynamics guarantee engagement.",
+        "mechanics": [
+          "Frame sexual topics as intellectual inquiry",
+          "Use 'just curious' or 'genuinely asking' for protection",
+          "Add period after disclaimer for detachment",
+          "Compare genders to invite both sides",
+          "Never apologize or explain intent"
+        ],
+        "example": "does men's nakedness move women the way women's nakedness move men? just curious ."
       },
-      
-      "power_dynamic_observation": {
-        "structure": "Describe interaction + reveal who actually has control",
-        "example": "He thought buying me a drink meant something. It didn't."
-      },
-      
-      "desire_game_theory": {
-        "structure": "Describe dynamic of wanting/being wanted + show strategic awareness",
-        "example": "Being wanted is boring. Being wondered about is addictive."
-      },
-      
-      "uncomfortable_truth": {
-        "structure": "Say the quiet part out loud + no softening",
-        "example": "You don't miss me. You miss how I made you feel about yourself."
-      },
-      
-      "cultural_commentary": {
-        "structure": "Reference media/culture + psychological insight",
-        "example": "Everyone watching Succession for the drama. I'm watching for the power dynamics."
+
+      "historical_authority_implication": {
+        "structure": "Ancient source(s) + unexpected connection + no commentary",
+        "why_it_works": "Multiple authorities = hard to dismiss. Unexpected pairing creates interest. Ambiguity allows projection.",
+        "mechanics": [
+          "Use 2+ ancient sources when possible",
+          "Connect disparate concepts (love/war, pleasure/courage, desire/power)",
+          "Use formal phrasing ('have remarked', 'observed')",
+          "Never explain modern relevance—let them figure it out",
+          "Leave interpretation completely open"
+        ],
+        "example": "Plutarch and Plato have already remarked that those nations most sensitive to the pleasures of love were also the most warlike and courageous."
       }
     }
   }
